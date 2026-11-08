@@ -1,8 +1,10 @@
 name: Build Telegram APK
 
 on:
-  workflow_dispatch: # Позволяет запускать сборку вручную кнопкой во вкладке Actions
-
+  workflow_dispatch:
+  push:
+    branches: [ "master" ]
+    
 jobs:
   build:
     runs-on: ubuntu-latest
