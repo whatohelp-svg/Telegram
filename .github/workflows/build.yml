@@ -41,4 +41,4 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Risegram-APK
-        path: TMessagesProj/build/outputs/apk/afat/debug/*.apk
+        path: TMessagesProj/build/outputs/apk/**/*.apk
