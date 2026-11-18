@@ -1856,6 +1856,16 @@ void ConnectionsManager::initDatacenters() {
         datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
         datacenter->suspendConnections(true);
         datacenter->clearAuthKey(HandshakeTypeAll);
+
+        // Drop stale Telegram temporary, download/CDN and IPv6 routes from a
+        // previously persisted client config. Media traffic can otherwise use
+        // one of those old routes before falling back to the primary DC.
+        std::vector<TcpAddress> noAddresses;
+        datacenter->replaceAddresses(noAddresses, TcpAddressFlagTemp);
+        datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload);
+        datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload | TcpAddressFlagIpv6);
+        datacenter->replaceAddresses(noAddresses, TcpAddressFlagIpv6);
+
         std::vector<TcpAddress> addresses;
         addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
         datacenter->replaceAddresses(addresses, 0);
