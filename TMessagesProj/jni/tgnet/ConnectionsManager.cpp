@@ -1834,6 +1834,10 @@ uint8_t ConnectionsManager::getIpStratagy() {
 }
 
 void ConnectionsManager::initDatacenters() {
+    // RiseGram has one production DC; persisted Telegram test-backend state
+    // must never select Telegram's incompatible 10xxx test DC namespace.
+    testBackend = false;
+
     // RiseGram is a single-DC self-hosted network. Do not seed Telegram's
     // public DC addresses or silently send accounts to Telegram.
     static const std::string risegramHost = "centerbeam.proxy.rlwy.net";
