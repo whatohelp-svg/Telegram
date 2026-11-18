@@ -331,6 +331,12 @@ void Connection::connect() {
     } else if (connectionType == ConnectionTypeTemp) {
         currentAddressFlags = TcpAddressFlagTemp;
         tcpAddress = currentDatacenter->getCurrentAddress(currentAddressFlags);
+        // RiseGram runs one public DC and does not publish a separate temporary
+        // endpoint. Reuse its pinned primary endpoint for temporary-key handshakes.
+        if (tcpAddress == nullptr) {
+            currentAddressFlags = isStatic;
+            tcpAddress = currentDatacenter->getCurrentAddress(currentAddressFlags);
+        }
         ipv6 = 0;
     } else {
         currentAddressFlags = isStatic;
