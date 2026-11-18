@@ -386,13 +386,13 @@ void Handshake::processHandshakeResponse_resPQ(TLObject *message, int64_t messag
 
                     // RiseGram's pinned public RSA key. Its fingerprint is generated
                     // from the persistent server key, not a Telegram key.
-                    serverPublicKeys.emplace_back("-----BEGIN RSA PUBLIC KEY-----\\n"
-                                                  "MIIBCgKCAQEAmzg4fDC+4pvNzDaCaVUnFftTg5YdY9OLuZCq8a1GjvKhSaiXsxrv\\n"
-                                                  "CM/tbpqdE8KLixEtL6VzmVLNbcGic8tcdj1QKPUAoHyCdlqU6dh8diI95OIQBJ7F\\n"
-                                                  "v2ZUC3NPXrIxD1S+XvpPTnMyxxuL3IwDIWtcVdeNgKqtEpcX+Ba+PRo8QEnRSpu9\\n"
-                                                  "HT5k4vQqyAK/E7ZXbHFa9RPTcAknnqBmIlbEYC0P6cVtcqV/l3ZvQPc9ErtIpGzn\\n"
-                                                  "Zr86GptV70AmzujXwNJxajrHcBC1f8fAV+Vyu8JUhy0uWoRgDXC1kmoswmwD+0iN\\n"
-                                                  "N8I20e+JfEeRKNWOxZck0aawO2RpHcO+PQIDAQAB\\n"
+                    serverPublicKeys.emplace_back("-----BEGIN RSA PUBLIC KEY-----\n"
+                                                  "MIIBCgKCAQEAmzg4fDC+4pvNzDaCaVUnFftTg5YdY9OLuZCq8a1GjvKhSaiXsxrv\n"
+                                                  "CM/tbpqdE8KLixEtL6VzmVLNbcGic8tcdj1QKPUAoHyCdlqU6dh8diI95OIQBJ7F\n"
+                                                  "v2ZUC3NPXrIxD1S+XvpPTnMyxxuL3IwDIWtcVdeNgKqtEpcX+Ba+PRo8QEnRSpu9\n"
+                                                  "HT5k4vQqyAK/E7ZXbHFa9RPTcAknnqBmIlbEYC0P6cVtcqV/l3ZvQPc9ErtIpGzn\n"
+                                                  "Zr86GptV70AmzujXwNJxajrHcBC1f8fAV+Vyu8JUhy0uWoRgDXC1kmoswmwD+0iN\n"
+                                                  "N8I20e+JfEeRKNWOxZck0aawO2RpHcO+PQIDAQAB\n"
                                                   "-----END RSA PUBLIC KEY-----");
                     serverPublicKeysFingerprints.push_back(0x41684b3ac49ce891ULL);
                 }
