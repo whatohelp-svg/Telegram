@@ -1834,93 +1834,35 @@ uint8_t ConnectionsManager::getIpStratagy() {
 }
 
 void ConnectionsManager::initDatacenters() {
-    // RiseGram is a self-hosted MTProto network. Do not fall back to Telegram DCs:
-    // a persisted Telegram config must be replaced with the RiseGram DC 2 endpoint.
-    const std::string risegramHost = "centerbeam.proxy.rlwy.net";
-    const uint32_t risegramPort = 59371;
-    Datacenter *risegramDatacenter = nullptr;
-    auto risegramIt = datacenters.find(2);
-    if (risegramIt == datacenters.end()) {
-        risegramDatacenter = new Datacenter(instanceNum, 2);
-        datacenters[2] = risegramDatacenter;
+    // RiseGram is a single-DC self-hosted network. Do not seed Telegram's
+    // public DC addresses or silently send accounts to Telegram.
+    static const std::string risegramHost = "centerbeam.proxy.rlwy.net";
+    static const uint32_t risegramPort = 59371;
+
+    Datacenter *datacenter = nullptr;
+    auto iter = datacenters.find(2);
+    if (iter == datacenters.end()) {
+        datacenter = new Datacenter(instanceNum, 2);
+        datacenters[2] = datacenter;
     } else {
-        risegramDatacenter = risegramIt->second;
+        datacenter = iter->second;
     }
 
-    TcpAddress *risegramAddress = risegramDatacenter->getCurrentAddress(TcpAddressFlagStatic);
-    if (risegramAddress == nullptr ||
-        risegramAddress->address != risegramHost ||
-        risegramDatacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
-        risegramDatacenter->suspendConnections(true);
-        risegramDatacenter->clearAuthKey(HandshakeTypeAll);
-        std::vector<TcpAddress> risegramAddresses;
-        risegramAddresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
-        risegramDatacenter->replaceAddresses(risegramAddresses, 0);
-        risegramDatacenter->resetAddressAndPortNum();
+    // A static marker lets us inspect the permanent IPv4 route even before
+    // a permanent auth key exists (when the normal getter prefers temp DCs).
+    TcpAddress *address = datacenter->getCurrentAddress(TcpAddressFlagStatic);
+    if (address == nullptr ||
+        address->address != risegramHost ||
+        datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
+        datacenter->suspendConnections(true);
+        datacenter->clearAuthKey(HandshakeTypeAll);
+        std::vector<TcpAddress> addresses;
+        addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
+        datacenter->replaceAddresses(addresses, 0);
+        datacenter->resetAddressAndPortNum();
     }
 
     currentDatacenterId = 2;
-    return;
-
-    Datacenter *datacenter;
-    if (!testBackend) {
-        if (datacenters.find(1) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 1);
-            datacenter->addAddressAndPort("149.154.175.50", 443, 0, "");
-            datacenter->addAddressAndPort("2001:b28:f23d:f001:0000:0000:0000:000a", 443, 1, "");
-            datacenters[1] = datacenter;
-        }
-
-        if (datacenters.find(2) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 2);
-            datacenter->addAddressAndPort("149.154.167.51", 443, 0, "");
-            datacenter->addAddressAndPort("95.161.76.100", 443, 0, "");
-            datacenter->addAddressAndPort("2001:67c:4e8:f002:0000:0000:0000:000a", 443, 1, "");
-            datacenters[2] = datacenter;
-        }
-
-        if (datacenters.find(3) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 3);
-            datacenter->addAddressAndPort("149.154.175.100", 443, 0, "");
-            datacenter->addAddressAndPort("2001:b28:f23d:f003:0000:0000:0000:000a", 443, 1, "");
-            datacenters[3] = datacenter;
-        }
-
-        if (datacenters.find(4) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 4);
-            datacenter->addAddressAndPort("149.154.167.91", 443, 0, "");
-            datacenter->addAddressAndPort("2001:67c:4e8:f004:0000:0000:0000:000a", 443, 1, "");
-            datacenters[4] = datacenter;
-        }
-
-        if (datacenters.find(5) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 5);
-            datacenter->addAddressAndPort("149.154.171.5", 443, 0, "");
-            datacenter->addAddressAndPort("2001:b28:f23f:f005:0000:0000:0000:000a", 443, 1, "");
-            datacenters[5] = datacenter;
-        }
-    } else {
-        if (datacenters.find(1) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 1);
-            datacenter->addAddressAndPort("149.154.175.40", 443, 0, "");
-            datacenter->addAddressAndPort("2001:b28:f23d:f001:0000:0000:0000:000e", 443, 1, "");
-            datacenters[1] = datacenter;
-        }
-
-        if (datacenters.find(2) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 2);
-            datacenter->addAddressAndPort("149.154.167.40", 443, 0, "");
-            datacenter->addAddressAndPort("2001:67c:4e8:f002:0000:0000:0000:000e", 443, 1, "");
-            datacenters[2] = datacenter;
-        }
-
-        if (datacenters.find(3) == datacenters.end()) {
-            datacenter = new Datacenter(instanceNum, 3);
-            datacenter->addAddressAndPort("149.154.175.117", 443, 0, "");
-            datacenter->addAddressAndPort("2001:b28:f23d:f003:0000:0000:0000:000e", 443, 1, "");
-            datacenters[3] = datacenter;
-        }
-    }
 }
 
 void ConnectionsManager::attachConnection(ConnectionSocket *connection) {
