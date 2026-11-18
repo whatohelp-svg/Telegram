@@ -1834,6 +1834,34 @@ uint8_t ConnectionsManager::getIpStratagy() {
 }
 
 void ConnectionsManager::initDatacenters() {
+    // RiseGram is a self-hosted MTProto network. Do not fall back to Telegram DCs:
+    // a persisted Telegram config must be replaced with the RiseGram DC 2 endpoint.
+    const std::string risegramHost = "centerbeam.proxy.rlwy.net";
+    const uint32_t risegramPort = 59371;
+    Datacenter *risegramDatacenter = nullptr;
+    auto risegramIt = datacenters.find(2);
+    if (risegramIt == datacenters.end()) {
+        risegramDatacenter = new Datacenter(instanceNum, 2);
+        datacenters[2] = risegramDatacenter;
+    } else {
+        risegramDatacenter = risegramIt->second;
+    }
+
+    TcpAddress *risegramAddress = risegramDatacenter->getCurrentAddress(TcpAddressFlagStatic);
+    if (risegramAddress == nullptr ||
+        risegramAddress->address != risegramHost ||
+        risegramDatacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
+        risegramDatacenter->suspendConnections(true);
+        risegramDatacenter->clearAuthKey(HandshakeTypeAll);
+        std::vector<TcpAddress> risegramAddresses;
+        risegramAddresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
+        risegramDatacenter->replaceAddresses(risegramAddresses, 0);
+        risegramDatacenter->resetAddressAndPortNum();
+    }
+
+    currentDatacenterId = 2;
+    return;
+
     Datacenter *datacenter;
     if (!testBackend) {
         if (datacenters.find(1) == datacenters.end()) {
