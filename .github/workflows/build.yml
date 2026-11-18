@@ -5,12 +5,17 @@ on:
     branches: [ master ]
   workflow_dispatch:
 
+concurrency:
+  group: risegram-apk-${{ github.ref }}
+  cancel-in-progress: true
+
 permissions:
   contents: read
 
 jobs:
   build:
     runs-on: ubuntu-latest
+    timeout-minutes: 90
     steps:
       - name: Checkout repository with submodules
         uses: actions/checkout@v4
