@@ -335,14 +335,13 @@ int32_t Datacenter::getCurrentPort(uint32_t flags) {
     }
     TcpAddress *address = &((*addresses) [currentAddressNum]);
     int32_t port;
-    if (!address->secret.empty()) {
-        port = -1;
-    } else {
-        port = defaultPorts[currentPortNum];
-    }
-    if (port == -1) {
+    // RiseGram's pinned endpoint uses a non-standard Railway TCP port.
+    // Static addresses must always use their declared port instead of Telegram's
+    // rotating default port list, even when no MTProxy secret is configured.
+    if ((address->flags & TcpAddressFlagStatic) != 0 || !address->secret.empty()) {
         return address->port;
     }
+    port = defaultPorts[currentPortNum];
     return port;
 }
 
