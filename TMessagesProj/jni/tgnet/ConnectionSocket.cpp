@@ -177,9 +177,26 @@ void ConnectionSocket::openConnection(std::string address, uint16_t port, std::s
             socketAddress.sin_family = AF_INET;
             socketAddress.sin_port = htons(port);
             if (inet_pton(AF_INET, address.c_str(), &socketAddress.sin_addr.s_addr) != 1) {
-                if (LOGS_ENABLED) DEBUG_E("connection(%p) bad ipv4 %s", this, address.c_str());
-                closeSocket(1, -1);
-                return;
+                // Telegram's built-in DCs are numeric IPs, but RiseGram uses a
+                // Railway hostname. Resolve hostnames before opening the socket.
+                addrinfo hints = {};
+                hints.ai_family = AF_INET;
+                hints.ai_socktype = SOCK_STREAM;
+                addrinfo *resolved = nullptr;
+                int resolveResult = getaddrinfo(address.c_str(), nullptr, &hints, &resolved);
+                if (resolveResult != 0 || resolved == nullptr) {
+                    if (LOGS_ENABLED) DEBUG_E("connection(%p) can't resolve ipv4 host %s: %s", this, address.c_str(), gai_strerror(resolveResult));
+                    if (resolved != nullptr) {
+                        freeaddrinfo(resolved);
+                    }
+                    closeSocket(1, -1);
+                    return;
+                }
+                socketAddress.sin_addr.s_addr = ((sockaddr_in *) resolved->ai_addr)->sin_addr.s_addr;
+                char resolvedIp[INET_ADDRSTRLEN] = {};
+                inet_ntop(AF_INET, &socketAddress.sin_addr, resolvedIp, sizeof(resolvedIp));
+                if (LOGS_ENABLED) DEBUG_D("connection(%p) resolved host %s to %s", this, address.c_str(), resolvedIp);
+                freeaddrinfo(resolved);
             }
         }
         uint32_t tempBuffLength;
