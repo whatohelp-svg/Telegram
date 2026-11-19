@@ -1862,20 +1862,24 @@ void ConnectionsManager::initDatacenters() {
     datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload | TcpAddressFlagIpv6);
     datacenter->replaceAddresses(noAddresses, TcpAddressFlagIpv6);
 
-    // A static marker lets us inspect the permanent IPv4 route even before
-    // a permanent auth key exists (when the normal getter prefers temp DCs).
+    // Keep an existing RiseGram authorization key only while its pinned endpoint
+    // remains unchanged. A key from another endpoint cannot authenticate here.
     TcpAddress *address = datacenter->getCurrentAddress(TcpAddressFlagStatic);
-    if (address == nullptr ||
+    bool endpointChanged = address == nullptr ||
         address->address != risegramHost ||
-        datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
+        datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort;
+    if (endpointChanged) {
         datacenter->suspendConnections(true);
         datacenter->clearAuthKey(HandshakeTypeAll);
-
-        std::vector<TcpAddress> addresses;
-        addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
-        datacenter->replaceAddresses(addresses, 0);
-        datacenter->resetAddressAndPortNum();
     }
+
+    // Do not leave persisted Telegram IPv4 alternatives alongside RiseGram.
+    // The saved currentAddressNum can point at one of those entries even though
+    // the RiseGram static entry is present, causing the client to dial Telegram.
+    std::vector<TcpAddress> addresses;
+    addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
+    datacenter->replaceAddresses(addresses, 0);
+    datacenter->resetAddressAndPortNum();
 
     currentDatacenterId = 2;
 }
