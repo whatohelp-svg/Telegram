@@ -352,7 +352,11 @@ void Connection::connect() {
         hostAddress = tcpAddress->address;
         secret = tcpAddress->secret;
     }
-    if (tcpAddress != nullptr && isStatic) {
+    // RiseGram's pinned DC can be selected without an MTProxy configured.
+    // Always use the port stored on a static endpoint instead of the rotating
+    // Telegram default port list.
+    if (tcpAddress != nullptr &&
+        (isStatic || (tcpAddress->flags & TcpAddressFlagStatic) != 0)) {
         hostPort = (uint16_t) tcpAddress->port;
     } else {
         hostPort = (uint16_t) currentDatacenter->getCurrentPort(currentAddressFlags);
