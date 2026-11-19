@@ -1852,6 +1852,16 @@ void ConnectionsManager::initDatacenters() {
         datacenter = iter->second;
     }
 
+    // Always discard persisted Telegram temp, download/CDN and IPv6 routes.
+    // Even when the primary RiseGram endpoint already matches, getCurrentAddress(0)
+    // prefers a saved temp route before a permanent auth key exists. That can send
+    // first-login traffic to an obsolete Telegram DC and leave the login spinner stuck.
+    std::vector<TcpAddress> noAddresses;
+    datacenter->replaceAddresses(noAddresses, TcpAddressFlagTemp);
+    datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload);
+    datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload | TcpAddressFlagIpv6);
+    datacenter->replaceAddresses(noAddresses, TcpAddressFlagIpv6);
+
     // A static marker lets us inspect the permanent IPv4 route even before
     // a permanent auth key exists (when the normal getter prefers temp DCs).
     TcpAddress *address = datacenter->getCurrentAddress(TcpAddressFlagStatic);
@@ -1860,15 +1870,6 @@ void ConnectionsManager::initDatacenters() {
         datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort) {
         datacenter->suspendConnections(true);
         datacenter->clearAuthKey(HandshakeTypeAll);
-
-        // Drop stale Telegram temporary, download/CDN and IPv6 routes from a
-        // previously persisted client config. Media traffic can otherwise use
-        // one of those old routes before falling back to the primary DC.
-        std::vector<TcpAddress> noAddresses;
-        datacenter->replaceAddresses(noAddresses, TcpAddressFlagTemp);
-        datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload);
-        datacenter->replaceAddresses(noAddresses, TcpAddressFlagDownload | TcpAddressFlagIpv6);
-        datacenter->replaceAddresses(noAddresses, TcpAddressFlagIpv6);
 
         std::vector<TcpAddress> addresses;
         addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
