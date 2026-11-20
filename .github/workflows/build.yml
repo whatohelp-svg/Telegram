@@ -38,7 +38,7 @@ jobs:
             echo "::error::Set RISEGRAM_API_ID and RISEGRAM_API_HASH repository secrets"
             exit 1
           fi
-          printf 'RISEGRAM_API_ID=%s\\nRISEGRAM_API_HASH=%s\\n' "$RISEGRAM_API_ID" "$RISEGRAM_API_HASH" > local.properties
+          printf 'RISEGRAM_API_ID=%s\nRISEGRAM_API_HASH=%s\n' "$RISEGRAM_API_ID" "$RISEGRAM_API_HASH" > local.properties
 
       - name: Clean and build universal native Android APK
         run: |
