@@ -11687,9 +11687,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (leftIcon == null && currentEncryptedChat == null && user.verified) {
                     nameTextView.setLeftDrawableOutside(true);
-                    Drawable riseGramPlane = ContextCompat.getDrawable(getParentActivity(), R.drawable.send_plane_24).mutate();
-                    riseGramPlane.setColorFilter(0xFF229ED9, PorterDuff.Mode.SRC_IN);
-                    leftIcon = riseGramPlane;
+                    Drawable majorBadge = ContextCompat.getDrawable(getParentActivity(), R.drawable.major_verified).mutate();
+                    leftIcon = majorBadge;
                 } else if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
@@ -11782,7 +11781,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 description.setSpan(new DotDividerSpan(), newString2.length() + 1, newString2.length() + 2, 0);
                 photoDescriptionText = description;
             }
-            profileStatusText = newString2;
+            profileStatusText = user.verified ? "Аккаунт подтверждён организацией Major" : newString2;
             updateOnlineText(true);
 
             if (previousTransitionFragment != null) {

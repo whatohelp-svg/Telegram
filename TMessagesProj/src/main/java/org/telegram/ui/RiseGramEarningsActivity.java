@@ -37,6 +37,8 @@ public class RiseGramEarningsActivity extends BaseFragment {
 
     private EditText phoneInput, codeInput, amountInput;
     private TextView statusView, gramBalanceView, starsBalanceView;
+    private LinearLayout loginPanel;
+    private Button connectButton;
     private String sessionToken;
     private boolean busy;
 
@@ -55,7 +57,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
     public View createView(Context context) {
         setHasOwnBackground(true);
         simpleActionBar.setBackButtonDrawable(new BackDrawable(false));
-        simpleActionBar.setTitle("Gram Earnings");
+        simpleActionBar.setTitle("Gram");
         simpleActionBar.setActionBarMenuOnItemClick(new ActionBar.ActionBarMenuOnItemClick() {
             @Override public void onItemClick(int id) { if (id == -1) finishFragment(); }
         });
@@ -70,8 +72,8 @@ public class RiseGramEarningsActivity extends BaseFragment {
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         fragmentView = scroll;
 
-        content.addView(label(context, "RiseGram wallet", 22, Color.WHITE, true), lp());
-        content.addView(label(context, "Внутренний баланс хранится на сервере. Курс: 1 Gram = 100 RiseStars.", 14, 0xFFB8C4CF, false), top(lp(), 8));
+        content.addView(label(context, "Валюта RiseGram", 22, Color.WHITE, true), lp());
+        content.addView(label(context, "Внутренняя валюта приложения. Обменивай Gram на RiseStars по фиксированному курсу.", 14, 0xFFB8C4CF, false), top(lp(), 8));
 
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
@@ -82,28 +84,15 @@ public class RiseGramEarningsActivity extends BaseFragment {
         card.setBackground(cardBg);
         content.addView(card, top(lp(), 18));
 
-        card.addView(label(context, "Gram Earrings", 14, 0xFF9BAEBC, false), lp());
-        gramBalanceView = label(context, "— Gram", 28, Color.WHITE, true);
+        card.addView(label(context, "ДОСТУПНЫЙ БАЛАНС", 12, 0xFF9BAEBC, true), lp());
+        gramBalanceView = label(context, "— Gram", 30, Color.WHITE, true);
         card.addView(gramBalanceView, top(lp(), 5));
-        card.addView(label(context, "RiseStars", 14, 0xFF9BAEBC, false), top(lp(), 14));
+        card.addView(label(context, "ЭКВИВАЛЕНТ В RISESTARS", 12, 0xFF9BAEBC, true), top(lp(), 16));
         starsBalanceView = label(context, "— RiseStars", 22, Color.WHITE, true);
         card.addView(starsBalanceView, top(lp(), 5));
 
-        content.addView(label(context, "Вход в кошелёк", 17, Color.WHITE, true), top(lp(), 22));
-        phoneInput = input(context, "Номер RiseGram", InputType.TYPE_CLASS_PHONE);
-        phoneInput.setText(UserConfig.getInstance(currentAccount).getClientPhone());
-        content.addView(phoneInput, top(lp(), 9));
-        codeInput = input(context, "Код из бота RiseGram", InputType.TYPE_CLASS_NUMBER);
-        content.addView(codeInput, top(lp(), 8));
-
-        Button request = button(context, "Получить код");
-        content.addView(request, top(lp(), 9));
-        request.setOnClickListener(v -> requestCode());
-        Button verify = button(context, "Войти в кошелёк");
-        content.addView(verify, top(lp(), 8));
-        verify.setOnClickListener(v -> verifyCode());
-
         content.addView(label(context, "Обмен валюты", 17, Color.WHITE, true), top(lp(), 22));
+        content.addView(label(context, "1 Gram = 100 RiseStars", 14, 0xFFB8C4CF, false), top(lp(), 5));
         amountInput = input(context, "Сумма обмена", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
         content.addView(amountInput, top(lp(), 9));
         Button gramToStars = button(context, "Gram → RiseStars");
@@ -113,11 +102,46 @@ public class RiseGramEarningsActivity extends BaseFragment {
         content.addView(starsToGram, top(lp(), 8));
         starsToGram.setOnClickListener(v -> exchange("stars_to_gram"));
 
+        loginPanel = new LinearLayout(context);
+        loginPanel.setOrientation(LinearLayout.VERTICAL);
+        loginPanel.setPadding(AndroidUtilities.dp(14), AndroidUtilities.dp(12), AndroidUtilities.dp(14), AndroidUtilities.dp(12));
+        GradientDrawable loginBg = new GradientDrawable();
+        loginBg.setColor(0xFF1C2935);
+        loginBg.setCornerRadius(AndroidUtilities.dp(14));
+        loginPanel.setBackground(loginBg);
+        content.addView(loginPanel, top(lp(), 22));
+        loginPanel.addView(label(context, "Подключение аккаунта RiseGram", 16, Color.WHITE, true), lp());
+        loginPanel.addView(label(context, "Нужен один вход для доступа к балансу. Это отдельная сессия RiseGram, не повторный вход в Telegram.", 13, 0xFF9BAEBC, false), top(lp(), 5));
+        phoneInput = input(context, "Номер аккаунта RiseGram", InputType.TYPE_CLASS_PHONE);
+        phoneInput.setText(UserConfig.getInstance(currentAccount).getClientPhone());
+        loginPanel.addView(phoneInput, top(lp(), 9));
+        codeInput = input(context, "Код из бота RiseGram", InputType.TYPE_CLASS_NUMBER);
+        loginPanel.addView(codeInput, top(lp(), 8));
+        Button request = button(context, "Получить код");
+        loginPanel.addView(request, top(lp(), 9));
+        request.setOnClickListener(v -> requestCode());
+        Button verify = button(context, "Подключить аккаунт");
+        loginPanel.addView(verify, top(lp(), 8));
+        verify.setOnClickListener(v -> verifyCode());
+
+        connectButton = button(context, sessionToken == null || sessionToken.isEmpty() ? "Скрыть подключение" : "Подключить другой аккаунт");
+        content.addView(connectButton, top(lp(), 14));
+        connectButton.setOnClickListener(v -> {
+            if (loginPanel.getVisibility() == View.VISIBLE) {
+                loginPanel.setVisibility(View.GONE);
+                connectButton.setText(sessionToken == null || sessionToken.isEmpty() ? "Подключить аккаунт" : "Подключить другой аккаунт");
+            } else {
+                loginPanel.setVisibility(View.VISIBLE);
+                connectButton.setText("Скрыть подключение");
+            }
+        });
+        loginPanel.setVisibility(sessionToken == null || sessionToken.isEmpty() ? View.VISIBLE : View.GONE);
+
         statusView = label(context, "", 13, 0xFF9BAEBC, false);
         content.addView(statusView, top(lp(), 14));
 
         if (sessionToken != null && !sessionToken.isEmpty()) loadBalances();
-        else setStatus("Запроси одноразовый код — он придёт в привязанный чат бота RiseGram");
+        else setStatus("Подключи аккаунт RiseGram, чтобы загрузить баланс");
         return fragmentView;
     }
 
@@ -228,7 +252,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
 
     private void requestCode() {
         String phone = phoneInput == null ? "" : phoneInput.getText().toString().trim();
-        if (phone.isEmpty()) { setStatus("Введи номер RiseGram"); return; }
+        if (phone.isEmpty()) { setStatus("Введи номер аккаунта RiseGram"); return; }
         runApi("Отправляем код…", () -> {
             JSONObject body = new JSONObject();
             body.put("phone", phone);
@@ -239,7 +263,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
     private void verifyCode() {
         String phone = phoneInput == null ? "" : phoneInput.getText().toString().trim();
         String code = codeInput == null ? "" : codeInput.getText().toString().trim();
-        if (phone.isEmpty() || code.isEmpty()) { setStatus("Введи номер и код из бота"); return; }
+        if (phone.isEmpty() || code.isEmpty()) { setStatus("Введи номер и код из бота RiseGram"); return; }
         runApi("Проверяем код…", () -> {
             JSONObject body = new JSONObject();
             body.put("phone", phone);
@@ -249,7 +273,9 @@ public class RiseGramEarningsActivity extends BaseFragment {
             sessionToken = response.optString("token", "");
             if (sessionToken.isEmpty()) { setStatus("Сервер не выдал сессию"); return; }
             getParentActivity().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(TOKEN_KEY, sessionToken).apply();
-            setStatus("Вход выполнен. Загружаем баланс…");
+            loginPanel.setVisibility(View.GONE);
+            connectButton.setText("Подключить другой аккаунт");
+            setStatus("Аккаунт RiseGram подключён. Загружаем баланс…");
             loadBalances();
         });
     }
@@ -257,7 +283,9 @@ public class RiseGramEarningsActivity extends BaseFragment {
     private void clearSession() {
         sessionToken = null;
         if (getParentActivity() != null) getParentActivity().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(TOKEN_KEY).apply();
-        setStatus("Сессия истекла. Получи новый код через бота RiseGram");
+        if (loginPanel != null) loginPanel.setVisibility(View.VISIBLE);
+        if (connectButton != null) connectButton.setText("Скрыть подключение");
+        setStatus("Сессия RiseGram истекла. Подключи аккаунт заново");
     }
 
     private void loadBalances() {
@@ -272,7 +300,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
     }
 
     private void exchange(String direction) {
-        if (sessionToken == null || sessionToken.isEmpty()) { setStatus("Сначала войди в кошелёк"); return; }
+        if (sessionToken == null || sessionToken.isEmpty()) { setStatus("Сначала подключи аккаунт RiseGram"); return; }
         String value = amountInput == null ? "" : amountInput.getText().toString().trim().replace(',', '.');
         final double amount;
         try { amount = Double.parseDouble(value); }
