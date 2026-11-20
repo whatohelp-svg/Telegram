@@ -11685,7 +11685,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView.setRightDrawable(null);
                     nameTextViewRightDrawableContentDescription = null;
                 }
-                if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
+                if (leftIcon == null && currentEncryptedChat == null && user.verified) {
+                    nameTextView.setLeftDrawableOutside(true);
+                    Drawable riseGramPlane = ContextCompat.getDrawable(getParentActivity(), R.drawable.send_plane_24).mutate();
+                    riseGramPlane.setColorFilter(0xFF229ED9, PorterDuff.Mode.SRC_IN);
+                    leftIcon = riseGramPlane;
+                } else if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
                 } else {

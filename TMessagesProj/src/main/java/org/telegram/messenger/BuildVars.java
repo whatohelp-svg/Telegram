@@ -28,6 +28,8 @@ public class BuildVars {
 
     public static int APP_ID = BuildConfig.RISEGRAM_API_ID;
     public static String APP_HASH = BuildConfig.RISEGRAM_API_HASH;
+    // Public HTTP API host; no private token is embedded in the client.
+    public static final String RISEGRAM_API_URL = "https://risegram-risegram.up.railway.app";
 
     // SafetyNet key for Google Identity SDK, set it to empty to disable
     public static String SAFETYNET_KEY = "AIzaSyDqt8P-7F7CPCseMkOiVRgb1LY8RN1bvH8";
