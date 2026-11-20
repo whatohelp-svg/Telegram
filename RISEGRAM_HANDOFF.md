@@ -83,3 +83,16 @@ At the start of a continuation:
 3. Check current GitHub Actions status and the latest APK artifact before describing build status.
 4. Update this file in the same commit or a follow-up commit whenever a significant decision, fix, failure, artifact, or next step changes.
 5. In the chat, tell the user the exact repository, commit SHA, files changed, build/test status, and what remains. Never imply that work was performed if only a plan was made.
+
+
+## Follow-up status (2026-11-20 22:00 +05)
+
+- Latest master commit before this continuation was `eb7bcc3513e80a5a7e821ef4abef4c927aedbed6` ("Restore native RiseGram wallet, gifts and verified profile marks").
+- GitHub Actions run #48 (`44772193837`) failed after 31m54s at Java compilation. Exact error: `SharedMediaLayout.java:6661: cannot find symbol: variable currentAccount`.
+- Fixed the compile error in commit `becdd99c2af27501d7c77491b6d3f72b573ef49f` by retrieving the selected account from the owning `profileActivity` when checking whether the profile belongs to the current user. This preserves the intended own-profile Gifts tab behavior without referencing a nonexistent field.
+- A new Actions run should be triggered by this commit; check its actual result before claiming the APK is built.
+- Remaining investigation: the group public-link prefix is populated from `MessagesController.linkPrefix`; verify the value supplied by the MTProto config and ensure it is a public Telegram-style domain (e.g. `t.me`), never the Railway MTProto service hostname. Do not change the actual public username field or silently rewrite existing group usernames.
+- The verified-profile change currently relies on the MTProto `user.verified` flag for the blue check and adds the blue Telegram plane as a left-side icon. Confirm the RiseGram MTProto server sets that flag only for RiseGram-approved accounts; client-side hard-coded verification is not acceptable.
+- Gifts: commit `eb7bcc3` makes the native profile Gifts tab visible for the user's own profile even at zero gift count and restores the native Settings `Send a Gift` entry. Confirm that the native catalog and send flow are available in the running MTProto backend; the Android source already contains Telegram's native `Gifts/SendGiftSheet` and related screens.
+- Gram Earnings: commit `eb7bcc3` adds a separate wallet screen using RiseGram REST endpoints and persists its wallet token in SharedPreferences. This wallet token is separate from the Telegram MTProto login session; do not conflate the two or clear Telegram auth data while debugging it.
+- Persistent Telegram login still needs device-level validation after app process restart. Preserve UserConfig/session files and never reset the local database as a debugging shortcut.
