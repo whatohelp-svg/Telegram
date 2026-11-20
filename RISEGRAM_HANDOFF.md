@@ -55,6 +55,14 @@ Thus the observed 56 MB size difference is explained by native ABI payloads, not
 - New users should receive a random Kazakhstan-style `+7 (986)...` number in the RiseGram account system. Do not assign the scarce `+888` number to everyone.
 - Premium, Stars, RiseStars, inventory, and drop mechanics must use real server-backed state rather than hard-coded demo balances/items.
 
+## Latest user-reported UI regressions (2026-11-20)
+
+- The user reports that the Gifts tab is still missing and Gram Earnings is absent.
+- The Gram Earnings settings row was restored on Android master in commit `fd5d6c405d17e60cc7c29edb1c414e53c76e78be` by restoring the existing `StarsController.getTonInstance` entry (setting item id 13). The existing click handler for id 13 is present. This source change requires a new APK and has not yet been built or device-tested.
+- The user screenshot of group settings shows the public username field containing a Railway MTProto hostname (`risegram-mtproto-risegram.up.railway...`) rather than a valid group username. Investigate the public link prefix / username initialization and ensure Railway service hostnames are never used as Telegram public usernames. Do not assume the user typed it.
+- Telegram profile gifts are implemented in `ProfileActivity` and the profile media tab uses `SharedMediaLayout.TAB_GIFTS`; verify why the user sees no Gifts tab. The standard profile tab may be conditional on a non-zero gifts count, so distinguish an absent profile tab from a missing Settings / bottom-navigation entry. Existing SettingsActivity includes a `SendAGift` row.
+- Do not claim these regressions are fully fixed until a fresh APK is built and checked on the user's device.
+
 ## Known web/admin regression to investigate separately
 
 In `whatohelp-svg/risegram`, commit `f9867610698111a4bca4486311f2a84e70e0d84e` (2026-11-20) modified `index.html` and restored a legacy/demo interface. The inspected diff indicated that it removed/replaced real auth/session UI, Gram Earrings section, and Telegram gift catalog retrieval with hard-coded demo profile data and manual gift entry. This is a web/admin repository regression, not the cause of the Android APK ABI size difference. Re-check current branch before editing; do not assume this commit is still HEAD.
