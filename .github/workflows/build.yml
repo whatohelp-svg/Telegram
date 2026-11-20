@@ -38,14 +38,22 @@ jobs:
             echo "::error::Set RISEGRAM_API_ID and RISEGRAM_API_HASH repository secrets"
             exit 1
           fi
-          printf 'RISEGRAM_API_ID=%s\nRISEGRAM_API_HASH=%s\n' "$RISEGRAM_API_ID" "$RISEGRAM_API_HASH" > local.properties
+          printf 'RISEGRAM_API_ID=%s\\nRISEGRAM_API_HASH=%s\\n' "$RISEGRAM_API_ID" "$RISEGRAM_API_HASH" > local.properties
 
-      - name: Build native Android APK
+      - name: Clean and build universal native Android APK
         run: |
           chmod +x gradlew
-          ./gradlew assembleAfatDebug --stacktrace
+          ./gradlew --no-daemon clean assembleAfatDebug --stacktrace
           APK_PATH="TMessagesProj_App/build/outputs/apk/afat/debug/app.apk"
           test -s "$APK_PATH"
+          for ABI in armeabi-v7a arm64-v8a x86 x86_64; do
+            if ! unzip -Z1 "$APK_PATH" | grep -q "^lib/$ABI/libtmessages.49.so$"; then
+              echo "::error::APK is missing native Telegram library for ABI: $ABI"
+              exit 1
+            fi
+          done
+          echo "Verified all four native ABIs:"
+          unzip -Z1 "$APK_PATH" | grep -E '^lib/(armeabi-v7a|arm64-v8a|x86|x86_64)/libtmessages\\.49\\.so$' | sort
           ls -lh "$APK_PATH"
           sha256sum "$APK_PATH"
 
