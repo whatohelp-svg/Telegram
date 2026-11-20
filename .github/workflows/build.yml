@@ -53,7 +53,7 @@ jobs:
             fi
           done
           echo "Verified all four native ABIs:"
-          unzip -Z1 "$APK_PATH" | grep -E '^lib/(armeabi-v7a|arm64-v8a|x86|x86_64)/libtmessages\\.49\\.so$' | sort
+          unzip -Z1 "$APK_PATH" | grep -E '^lib/(armeabi-v7a|arm64-v8a|x86|x86_64)/libtmessages\.49\.so$' | sort
           ls -lh "$APK_PATH"
           sha256sum "$APK_PATH"
 
