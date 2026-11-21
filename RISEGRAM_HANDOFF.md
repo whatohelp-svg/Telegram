@@ -145,3 +145,15 @@ At the start of a continuation:
 3. Check the Telegram repository master APK workflow triggered by this handoff update; download the artifact, confirm it is a real APK and inspect lib/{armeabi-v7a,arm64-v8a,x86,x86_64}/libtmessages.49.so.
 4. On a real device, close RiseGram completely, relaunch, confirm the account remains signed in, open Gram, open the gifts menu, purchase one NFT-upgrade gift on a test account and verify the user's Telegram gift plus RiseGram inventory, stock decrement and RiseStars debit.
 5. Do not declare the private release ready until the above device checks are completed.
+
+
+## Verification update (2026-11-21 10:30 +05)
+
+- Latest RiseGram backend head tested: `6bcccab42bceac5847bd3e2fa62d5a56e045cdf8`.
+- GitHub Actions backend validation run `44870840724` completed successfully. It compiled the Python sources and passed all 19 unit tests; both gift catalog tests passed:
+  - `test_legacy_drop_is_upgraded_and_price_floor_is_enforced`
+  - `test_sync_is_idempotent_and_purchase_pays_for_nft_upgrade`
+- Railway bot/API deployment `0b09800e-7564-442f-ab5b-1db353a17e08` and MTProto deployment `ea138225-ae28-4d84-a1d0-e90030249605` both report `SUCCESS` on the same head SHA. Bot logs after restart showed HTTP API listening, @risegrambot polling, and no startup import error.
+- MTProto logs filtered after the latest restart did not show a new `AUTH_KEY_UNREGISTERED`; this remains insufficient to prove the user's force-close/relaunch case. Physical-device validation is still required.
+- Telegram master APK workflow status and artifact for the Android UI changes above have not been verified in this continuation. Do not claim the new Android client APK is ready until the Telegram master workflow's APK artifact is inspected and all four native ABI libraries are present.
+- Real Telegram NFT gift purchase has not yet been executed against a test account. The code path, catalog sync, pending purchase handling and inventory tests are in place; perform one real gift purchase on a test account before public release.
