@@ -697,6 +697,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int botAppRow;
     private int unofficialSecurityRiskRow;
     private int majorVerificationRow;
+    private int riseGramVerificationRow;
+    private boolean verifiedByRiseGram, verifiedByMajor;
+    private int verificationRequest;
     private int unofficialSecurityRiskDividerRow;
 
     private int linkedCommunityRow;
@@ -2361,6 +2364,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
 
     @Override
     public void onFragmentDestroy() {
+        verificationRequest++;
         super.onFragmentDestroy();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onDestroy();
@@ -9794,9 +9798,48 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         }
     }
 
+    private void refreshVerification() {
+        if (userId <= 0) return;
+        final int request = ++verificationRequest;
+        final long peer = userId;
+        android.os.AsyncTask.THREAD_POOL_EXECUTOR.execute(() -> {
+            java.net.HttpURLConnection connection = null;
+            try {
+                connection = (java.net.HttpURLConnection) new java.net.URL(
+                        BuildVars.RISEGRAM_API_URL + "/api/profiles/" + peer + "/verification").openConnection();
+                connection.setConnectTimeout(5000);
+                connection.setReadTimeout(5000);
+                if (connection.getResponseCode() != 200) return;
+                try (java.io.BufferedReader reader = new java.io.BufferedReader(
+                        new java.io.InputStreamReader(connection.getInputStream(), "UTF-8"))) {
+                    StringBuilder body = new StringBuilder();
+                    String line;
+                    while ((line = reader.readLine()) != null) body.append(line);
+                    org.json.JSONObject result = new org.json.JSONObject(body.toString());
+                    boolean rise = result.getBoolean("verified_risegram");
+                    boolean major = result.getBoolean("verified_major");
+                    AndroidUtilities.runOnUIThread(() -> {
+                        if (request != verificationRequest || peer != userId || listAdapter == null) return;
+                        if (verifiedByRiseGram == rise && verifiedByMajor == major) return;
+                        verifiedByRiseGram = rise;
+                        verifiedByMajor = major;
+                        updateRowsIds();
+                        listAdapter.notifyDataSetChanged();
+                        updateProfileData(false);
+                    });
+                }
+            } catch (java.io.IOException | org.json.JSONException ignored) {
+                // Keep the last confirmed badges during temporary network failures.
+            } finally {
+                if (connection != null) connection.disconnect();
+            }
+        });
+    }
+
     @Override
     public void onResume() {
         super.onResume();
+        refreshVerification();
         if (sharedMediaLayout != null) {
             sharedMediaLayout.onResume();
         }
@@ -10756,6 +10799,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         botPermissionsDivider = -1;
         unofficialSecurityRiskRow = -1;
         majorVerificationRow = -1;
+        riseGramVerificationRow = -1;
         unofficialSecurityRiskDividerRow = -1;
         linkedCommunityRow = -1;
         linkedCommunityDividerRow = -1;
@@ -10970,9 +11014,6 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
-                if (user != null && user.verified) {
-                    majorVerificationRow = rowCount++;
-                }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
                         birthdayRow = rowCount++;
@@ -10993,6 +11034,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (isBot && user != null && user.bot_has_main_app) {
                     botAppRow = rowCount++;
                 }
+                if (verifiedByRiseGram) riseGramVerificationRow = rowCount++;
+                if (verifiedByMajor) majorVerificationRow = rowCount++;
                 infoEndRow = rowCount - 1;
                 infoSectionRow = rowCount++;
 
@@ -11690,14 +11733,11 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView.setRightDrawable(null);
                     nameTextViewRightDrawableContentDescription = null;
                 }
-                if (leftIcon == null && currentEncryptedChat == null && user.verified) {
-                    nameTextView.setLeftDrawableOutside(true);
-                    boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
-                    Drawable verifiedBadge = ContextCompat.getDrawable(
-                            getParentActivity(),
-                            majorAccount ? R.drawable.major_verified : R.drawable.risegram_verified
-                    ).mutate();
-                    leftIcon = verifiedBadge;
+                if (leftIcon == null && currentEncryptedChat == null && (verifiedByRiseGram || verifiedByMajor)) {
+                    nameTextView.setLeftDrawableOutside(false);
+                    int badge = verifiedByRiseGram && verifiedByMajor ? R.drawable.risegram_both_verified
+                            : verifiedByMajor ? R.drawable.major_verified : R.drawable.risegram_verified;
+                    leftIcon = ContextCompat.getDrawable(getParentActivity(), badge).mutate();
                 } else if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
@@ -11790,14 +11830,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 description.setSpan(new DotDividerSpan(), newString2.length() + 1, newString2.length() + 2, 0);
                 photoDescriptionText = description;
             }
-            if (user.verified) {
-                boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
-                profileStatusText = majorAccount
-                        ? "Аккаунт верифицирован организацией Major"
-                        : "Аккаунт верифицирован официальной компанией «RiseGram»";
-            } else {
-                profileStatusText = newString2;
-            }
+            profileStatusText = newString2;
             updateOnlineText(true);
 
             if (previousTransitionFragment != null) {
@@ -13778,30 +13811,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         sb.append(" ");
                         sb.append(formatString(R.string.ProfileUnofficialSecurityRisk, UserObject.getForcedFirstName(getMessagesController().getUser(userId))));
                         textView.setText(sb);
-                    } else if (position == majorVerificationRow) {
+                    } else if (position == majorVerificationRow || position == riseGramVerificationRow) {
+                        boolean major = position == majorVerificationRow;
                         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
                         textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
                         textView.setGravity(Gravity.CENTER_VERTICAL);
-                        TLRPC.User profileUser = getMessagesController().getUser(userId);
-                        if (profileUser != null && profileUser.verified) {
-                            boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(profileUser));
-                            textView.setText(majorAccount
-                                    ? "Major · Аккаунт верифицирован организацией Major"
-                                    : "Аккаунт верифицирован официальной компанией «RiseGram»");
-                            Drawable verifiedIcon = ContextCompat.getDrawable(
-                                    mContext,
-                                    majorAccount ? R.drawable.major_badge : R.drawable.risegram_verified
-                            );
-                            if (verifiedIcon != null) {
-                                verifiedIcon.setBounds(0, 0, dp(20), dp(20));
-                                textView.setCompoundDrawablesRelative(verifiedIcon, null, null, null);
-                                textView.setCompoundDrawablePadding(dp(8));
-                            }
-                        } else {
-                            textView.setText("");
-                            textView.setCompoundDrawablesRelative(null, null, null, null);
-                            textView.setCompoundDrawablePadding(0);
-                        }
+                        textView.setText(getString(major ? R.string.ProfileVerifiedMajor : R.string.ProfileVerifiedRiseGram));
+                        Drawable icon = ContextCompat.getDrawable(mContext,
+                                major ? R.drawable.major_verified : R.drawable.risegram_verified).mutate();
+                        icon.setBounds(0, 0, dp(18), dp(18));
+                        textView.setCompoundDrawablesRelative(icon, null, null, null);
+                        textView.setCompoundDrawablePadding(dp(6));
                     }
                     break;
                 case VIEW_TYPE_PREMIUM_TEXT_CELL:
@@ -14486,7 +14506,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return VIEW_TYPE_BOT_APP;
             } else if (position == infoSectionRow || position == infoAffiliateRow) {
                 return VIEW_TYPE_SHADOW_TEXT;
-            } else if (position == unofficialSecurityRiskRow || position == majorVerificationRow) {
+            } else if (position == unofficialSecurityRiskRow || position == majorVerificationRow || position == riseGramVerificationRow) {
                 return VIEW_TYPE_TEXT2;
             } else if (position == linkedCommunityRow) {
                 return VIEW_TYPE_LINKED_COMMUNITY;
@@ -15744,6 +15764,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, userInfoRow, sparseIntArray);
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
+            put(++pointer, riseGramVerificationRow, sparseIntArray);
             put(++pointer, majorVerificationRow, sparseIntArray);
             put(++pointer, notificationsDividerRow, sparseIntArray);
             put(++pointer, reportDividerRow, sparseIntArray);

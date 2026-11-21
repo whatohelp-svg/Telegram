@@ -265,4 +265,6 @@
     <string name="RemindDayYearAt">\'Напомнить\' d MMM yyyy \'в\' HH:mm</string>
     <string name="GramEarnings">Gram</string>
     <string name="RiseGramPhoneAuthTimeout">RiseGram не ответил вовремя. Проверьте подключение и повторите попытку.</string>
+    <string name="ProfileVerifiedRiseGram">Представители RiseGram подтвердили, что это официальный аккаунт.</string>
+    <string name="ProfileVerifiedMajor">Аккаунт верифицирован организацией «Major».</string>
 </resources>

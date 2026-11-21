@@ -11679,4 +11679,6 @@
     <string name="FpnvConsentMccMnc">MCC / MNC</string>
     <string name="FpnvConsentPhoneNumber">Phone Number</string>
     <string name="RiseGramPhoneAuthTimeout">RiseGram did not respond in time. Check your connection and try again.</string>
+    <string name="ProfileVerifiedRiseGram">This account is verified as official by RiseGram.</string>
+    <string name="ProfileVerifiedMajor">This account is verified by Major.</string>
 </resources>
