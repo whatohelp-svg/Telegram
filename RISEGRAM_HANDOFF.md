@@ -107,3 +107,41 @@ At the start of a continuation:
 - Railway MTProto logs still show `AUTH_KEY_UNREGISTERED` for some previously seen raw auth keys after service restart. The app's `ConnectionsManager.onLogout` clears `UserConfig` only when the server explicitly reports logout / unregistered key; do not remove that safety behavior or reset the DB. The MTProto service has its state volume mounted at `/var/lib/telesrv` and Postgres/Redis are online. Investigate persistence/binding behavior in the upstream `iamxvbaba/gramsrv` submodule; this fork does not have write permission to that upstream repo.
 - User-reported relogin after app restart remains unverified on a physical device. A backend log contains both successful `auth.signIn` and later `AUTH_KEY_UNREGISTERED` for some auth keys; do not state that persistence is fixed without device testing.
 - Verification UI: the Android change uses the server-provided MTProto `user.verified` flag for the blue verified check and adds the blue Telegram plane at the left. Confirm server-side verification authorization before describing it as RiseGram-specific verification; no hard-coded user ID or client-only fake check.
+
+## Continuation update (2026-11-21 10:26 +05)
+
+### Android client changes on master
+
+- 618e719b2245d2be2cf0672f5862b6df15ab6031 changed the Settings label from "Gram Earnings" to "Gram".
+- a9d9ddaabd0594670473554e76964e8af97c638e added the Russian "Gram" label; 0a4fd517c6860c522c145a4f6aa6f53d89c63464 added the RiseGram blue verification badge drawable.
+- 26bc021b8893dbc1806bf42cfcae41fd79692f84 clarified the Gram screen as access to the RiseGram currency balance, not a second wallet.
+- e809eea021de0cf3cd19cb7ba21c98c39161c069 separated the RiseGram verification text from Major.
+- 9a224477170a64fa2483b0845675798f5a823468 made the profile footer conditional on server verification and now shows the RiseGram verification text/icon for ordinary verified accounts, or Major text/icon when the public username is @major.
+- Gram remains backed by the RiseGram economy API and retains its own RiseGram account session token. Do not remove that authorization or reuse Telegram UserConfig: the RiseGram economy database still has a separate account identity. The user-facing section is labelled "Gram" and shows the 1 Gram = 100 RiseStars conversion.
+- The Android client changes are committed, but this continuation has not yet completed a fresh APK build from the Telegram repository or a device install/relaunch test. The handoff update commit should trigger the master APK workflow; verify its artifact and all four native ABI libraries before release.
+
+### NFT gift drop implementation on feature/market-economy-sync
+
+- Added database.py support for upgrade_stars and pay_for_upgrade columns via the existing SQLite schema migration. Catalog synchronization adds missing bot-sendable gifts which can be upgraded to unique gifts, keeps live drops idempotent, and enforces a base-gift-plus-upgrade RiseStars price floor.
+- Added the shared gift_catalog.py module so the bot, admin panel and HTTP API can read Telegram's live gift catalog without circular imports.
+- The admin drop catalog now synchronizes the bot's available NFT-upgrade gifts and supports manually setting limited stock and a RiseStars price that cannot undercut the Telegram gift+upgrade cost.
+- Added a player-facing "Подарки" entry to the bot main menu, /gifts, paging, a "Мои подарки" inventory, and purchase callbacks. The purchase path atomically reserves one unit and RiseStars, sends the Telegram gift with pay_for_upgrade=True, then confirms the inventory row.
+- Explicit Telegram API rejections refund the RiseStars and restore stock. If the network result is ambiguous, the reservation remains pending to avoid sending a duplicate; pending items are now visible in the player's gift inventory and API response.
+- Automated tests in tests/test_gift_catalog.py cover idempotent catalog sync, NFT upgrade pricing, limited stock, purchase rollback/confirmation and pending inventory display.
+- Scope limitation: the catalog can include every NFT-upgrade-capable gift returned by Bot API getAvailableGifts for this bot. It cannot automatically list every already-minted collectible owned by other users or items outside the bot's sendable gift catalog. Do not describe this as a complete marketplace-wide NFT transfer feature.
+
+### Backend deployment and login status
+
+- The RiseGram bot/API service successfully started on Railway at commit 86aaeb8bf632decd19eee9d92c79b49d9409325b; logs showed "HTTP API listening", "RiseGram запущен как @risegrambot", and polling started. After the pending-inventory commits, the latest observed bot deployment for 6bcccab42bceac5847bd3e2fa62d5a56e045cdf8 was SUCCESS, and a new container again reported the API and bot polling started.
+- The MTProto service's deployment at commit 86aaeb8bf632decd19eee9d92c79b49d9409325b was SUCCESS. Later commits also queued/restarted this service; verify its newest deployment is SUCCESS before release.
+- The previous full backend validation run 44870618404 completed successfully on commit 86aaeb8bf632decd19eee9d92c79b49d9409325b, including the gift-catalog tests. The pending-inventory test update after that run still needs a fresh validation result.
+- Recent logs checked after 2026-11-21 05:23:19Z did not show a new AUTH_KEY_UNREGISTERED. Older logs included PHONE_CODE_INVALID / PHONE_CODE_EXPIRED attempts followed by successful auth.signIn authorization committed for the same permanent auth key. This does not prove the user's cold-relaunch case is fixed.
+- Preserve ConnectionsManager.onLogout, UserConfig, the local session database, the persistent MTProto RSA volume and server auth gates. Never hide AUTH_KEY_UNREGISTERED or reset the database as a workaround. Only call persistent login fixed after the user verifies a full app close/reopen and fresh authenticated RPCs on a real device.
+
+### Release gate
+
+1. Verify the newest RiseGram bot and MTProto Railway deployments are both SUCCESS; inspect startup and auth logs for the latest restart.
+2. Re-run the backend suite after the pending-inventory changes and retain the full successful result.
+3. Check the Telegram repository master APK workflow triggered by this handoff update; download the artifact, confirm it is a real APK and inspect lib/{armeabi-v7a,arm64-v8a,x86,x86_64}/libtmessages.49.so.
+4. On a real device, close RiseGram completely, relaunch, confirm the account remains signed in, open Gram, open the gifts menu, purchase one NFT-upgrade gift on a test account and verify the user's Telegram gift plus RiseGram inventory, stock decrement and RiseStars debit.
+5. Do not declare the private release ready until the above device checks are completed.
