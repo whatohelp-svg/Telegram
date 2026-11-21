@@ -3431,6 +3431,12 @@ void ConnectionsManager::updateDcSettings(uint32_t dcNum, bool workaround, bool 
             // help.getConfig response can omit the static flag on that same
             // endpoint, causing tgnet to switch to its legacy port rotation.
             // Keep the pinned route and still deliver the full app config.
+            if (!config->dc_options.empty()) {
+                saveConfig();
+                scheduleTask([&] {
+                    processRequestQueue(AllConnectionTypes, 0);
+                });
+            }
             if (delegate != nullptr) {
                 delegate->onUpdateConfig(config, instanceNum);
             }
