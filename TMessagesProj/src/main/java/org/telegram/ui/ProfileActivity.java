@@ -11734,7 +11734,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextViewRightDrawableContentDescription = null;
                 }
                 if (leftIcon == null && currentEncryptedChat == null && (verifiedByRiseGram || verifiedByMajor)) {
-                    nameTextView.setLeftDrawableOutside(true);
+                    nameTextView.setLeftDrawableOutside(false);
                     int badge = verifiedByRiseGram && verifiedByMajor ? R.drawable.risegram_both_verified
                             : verifiedByMajor ? R.drawable.major_verified : R.drawable.risegram_verified;
                     leftIcon = ContextCompat.getDrawable(getParentActivity(), badge).mutate();
