@@ -65,6 +65,7 @@ import com.android.billingclient.api.QueryProductDetailsParams;
 import org.telegram.messenger.AndroidUtilities;
 import org.telegram.messenger.BillingController;
 import org.telegram.messenger.BirthdayController;
+import org.telegram.ui.Components.Premium.boosts.UserSelectorBottomSheet;
 import org.telegram.messenger.BuildVars;
 import org.telegram.messenger.DialogObject;
 import org.telegram.messenger.DocumentObject;
@@ -158,6 +159,7 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
     private TLRPC.DisallowedGiftsSettings userSettings;
 
     private final long dialogId;
+    private static final int BUTTON_CHOOSE_RECIPIENT = -101;
     private final boolean self;
     private final String name;
 
@@ -478,6 +480,11 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
             final UItem item = adapter.getItem(position - 1);
             if (item == null) return;
 
+            if (item.id == BUTTON_CHOOSE_RECIPIENT) {
+                dismiss();
+                UserSelectorBottomSheet.open(UserSelectorBottomSheet.TYPE_STAR_GIFT, 0, BirthdayController.getInstance(currentAccount).getState());
+                return;
+            }
             if (item.instanceOf(GiftCell.Factory.class)) {
                 if (item.object instanceof GiftPremiumBottomSheet.GiftTier) {
                     final GiftPremiumBottomSheet.GiftTier premiumTier = (GiftPremiumBottomSheet.GiftTier) item.object;
@@ -928,6 +935,9 @@ public class GiftSheet extends BottomSheetWithRecyclerListView implements Notifi
     }
 
     public void fillItems(ArrayList<UItem> items, UniversalAdapter adapter) {
+        if (self && closeParentSheet == null) {
+            items.add(UItem.asButton(BUTTON_CHOOSE_RECIPIENT, R.drawable.settings_gift, getString(R.string.GiftPremiumChooseRecipientsBtn)));
+        }
         boolean pushedTopView = false;
         if (!self && dialogId >= 0 && !(userSettings != null && userSettings.disallow_premium_gifts)) {
             items.add(UItem.asCustom(topView));

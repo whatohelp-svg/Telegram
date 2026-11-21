@@ -2582,6 +2582,7 @@ public class StarsController {
                     MessagesController.getInstance(currentAccount).processUpdates(result.updates, false);
                 });
 
+                invalidateBalance(null);
                 invalidateTransactions(true);
 
                 if (whenDone != null) {
@@ -2752,6 +2753,7 @@ public class StarsController {
 
                 invalidateStarGifts();
                 invalidateProfileGifts(dialogId);
+                invalidateBalance(null);
                 invalidateTransactions(true);
 
                 if (whenDone != null) {
