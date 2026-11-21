@@ -359,6 +359,10 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     private FragmentFloatingButton floatingButton;
     private VerticalPositionAutoAnimator floatingAutoAnimator;
     private int progressRequestId;
+    private static final long PHONE_AUTH_TIMEOUT_MS = 30_000;
+    private static final String PHONE_AUTH_TIMEOUT = "RISEGRAM_PHONE_AUTH_TIMEOUT";
+    private Runnable phoneAuthTimeout;
+    private TLObject phoneAuthRequest;
     private boolean[] doneButtonVisible = new boolean[] {true, false};
 
     private AlertDialog cancelDeleteProgressDialog;
@@ -532,6 +536,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
 
     @Override
     public void onFragmentDestroy() {
+        cancelPhoneAuthTimeout();
         super.onFragmentDestroy();
         for (int a = 0; a < views.length; a++) {
             if (views[a] != null) {
@@ -1487,6 +1492,43 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
         }
     }
 
+    private void cancelPhoneAuthTimeout() {
+        if (phoneAuthTimeout != null) {
+            AndroidUtilities.cancelRunOnUIThread(phoneAuthTimeout);
+            phoneAuthTimeout = null;
+        }
+        phoneAuthRequest = null;
+    }
+
+    private int sendPhoneAuthRequest(TLObject request, RequestDelegate callback, int flags) {
+        cancelPhoneAuthTimeout();
+        int page = currentViewNum;
+        ConnectionsManager connections = getConnectionsManager();
+        int requestId = connections.sendRequest(request, (response, error) ->
+            AndroidUtilities.runOnUIThread(() -> {
+                if (phoneAuthTimeout == null || phoneAuthRequest != request) {
+                    return;
+                }
+                cancelPhoneAuthTimeout();
+                if (currentViewNum == page) {
+                    callback.run(response, error);
+                }
+            }), flags);
+        phoneAuthRequest = request;
+        phoneAuthTimeout = () -> {
+            phoneAuthTimeout = null;
+            phoneAuthRequest = null;
+            connections.cancelRequest(requestId, true);
+            if (currentViewNum == page) {
+                TLRPC.TL_error error = new TLRPC.TL_error();
+                error.text = PHONE_AUTH_TIMEOUT;
+                callback.run(null, error);
+            }
+        };
+        AndroidUtilities.runOnUIThread(phoneAuthTimeout, PHONE_AUTH_TIMEOUT_MS);
+        return requestId;
+    }
+
     private void needShowProgress(int requestId) {
         needShowProgress(requestId, true);
     }
@@ -1512,6 +1554,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
     }
 
     private void needHideProgress(boolean cancel, boolean animated) {
+        if (cancel) {
+            cancelPhoneAuthTimeout();
+        }
         if (progressRequestId != 0) {
             if (cancel) {
                 ConnectionsManager.getInstance(currentAccount).cancelRequest(progressRequestId, true);
@@ -3215,7 +3260,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
             phoneInputData.phoneNumber = "+" + codeField.getText() + " " + phoneField.getText();
             phoneInputData.country = currentCountry;
             phoneInputData.patterns = phoneFormatMap.get(codeField.getText().toString());
-            int reqId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+            int reqId = sendPhoneAuthRequest(req, (response, error) -> {
                 nextPressed = false;
                 if (error == null) {
                     if (response instanceof TLRPC.TL_auth_sentCodeSuccess) {
@@ -3234,7 +3279,9 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                     }
                 } else {
                     if (error.text != null) {
-                        if (error.text.contains("SESSION_PASSWORD_NEEDED")) {
+                        if (PHONE_AUTH_TIMEOUT.equals(error.text)) {
+                            needShowAlert(getString(R.string.RestorePasswordNoEmailTitle), getString(R.string.RiseGramPhoneAuthTimeout));
+                        } else if (error.text.contains("SESSION_PASSWORD_NEEDED")) {
                             TL_account.getPassword req2 = new TL_account.getPassword();
                             ConnectionsManager.getInstance(currentAccount).sendRequest(req2, (response1, error1) -> AndroidUtilities.runOnUIThread(() -> {
                                 nextPressed = false;
@@ -3279,7 +3326,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                 if (!isRequestingFirebaseSms) {
                     needHideProgress(false);
                 }
-            }), ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagTryDifferentDc | ConnectionsManager.RequestFlagEnableUnauthorized);
+            }, ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagWithoutLogin | ConnectionsManager.RequestFlagTryDifferentDc | ConnectionsManager.RequestFlagEnableUnauthorized);
             needShowProgress(reqId);
         }
 
@@ -5119,7 +5166,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                         f.animateFocusedProgress(0);
                     }
 
-                    int reqId = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (response, error) -> AndroidUtilities.runOnUIThread(() -> {
+                    int reqId = sendPhoneAuthRequest(req, (response, error) -> {
                         tryHideProgress(false, true);
 
                         boolean ok = false;
@@ -5194,7 +5241,12 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                                 waitingForEvent = true;
                                 if (currentType != AUTH_TYPE_FLASH_CALL) {
                                     boolean isWrongCode = false;
-                                    if (error.text.contains("PHONE_NUMBER_INVALID")) {
+                                    if (PHONE_AUTH_TIMEOUT.equals(error.text)) {
+                                        codeFieldContainer.isFocusSuppressed = false;
+                                        codeFieldContainer.codeField[0].requestFocus();
+                                        needShowAlert(getString(R.string.RestorePasswordNoEmailTitle), getString(R.string.RiseGramPhoneAuthTimeout));
+                                        return;
+                                    } else if (error.text.contains("PHONE_NUMBER_INVALID")) {
                                         needShowAlert(getString(R.string.RestorePasswordNoEmailTitle), getString("InvalidPhoneNumber", R.string.InvalidPhoneNumber));
                                     } else if (error.text.contains("PHONE_CODE_EMPTY") || error.text.contains("PHONE_CODE_INVALID")) {
                                         shakeWrongCode();
@@ -5226,7 +5278,7 @@ public class LoginActivity extends BaseFragment implements NotificationCenter.No
                                 AndroidUtilities.setWaitingForCall(false);
                             }
                         }
-                    }), ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagWithoutLogin);
+                    }, ConnectionsManager.RequestFlagFailOnServerErrors | ConnectionsManager.RequestFlagWithoutLogin);
                     tryShowProgress(reqId, true);
                     showDoneButton(true, true);
                     break;
