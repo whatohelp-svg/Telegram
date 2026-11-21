@@ -38,6 +38,7 @@ public class RiseGramGiftsActivity extends BaseFragment {
     private String sessionToken;
     private LinearLayout content;
     private LinearLayout dropsContainer;
+    private LinearLayout inventoryContainer;
     private TextView statusView;
     private boolean busy;
 
@@ -89,6 +90,9 @@ public class RiseGramGiftsActivity extends BaseFragment {
         content.addView(dropsContainer, top(lp(), 8));
 
         content.addView(label(context, "МОЯ КОЛЛЕКЦИЯ", 12, 0xFF9BAEBC, true), top(lp(), 22));
+        inventoryContainer = new LinearLayout(context);
+        inventoryContainer.setOrientation(LinearLayout.VERTICAL);
+        content.addView(inventoryContainer, top(lp(), 8));
         if (sessionToken == null || sessionToken.isEmpty()) {
             setStatus("Сначала подключи аккаунт RiseGram в разделе Gram");
             Button back = button(context, "Вернуться к балансу Gram");
@@ -246,6 +250,7 @@ public class RiseGramGiftsActivity extends BaseFragment {
             }
         }
 
+        inventoryContainer.removeAllViews();
         JSONArray inventory = response.optJSONArray("inventory");
         if (inventory != null && inventory.length() > 0) {
             for (int i = 0; i < Math.min(inventory.length(), 20); i++) {
@@ -257,10 +262,10 @@ public class RiseGramGiftsActivity extends BaseFragment {
                 TextView row = label(getParentActivity(), itemText, 14, Color.WHITE, false);
                 row.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(8),
                         AndroidUtilities.dp(12), AndroidUtilities.dp(8));
-                dropsContainer.addView(row, top(lp(), 4));
+                inventoryContainer.addView(row, top(lp(), 4));
             }
         } else {
-            dropsContainer.addView(label(getParentActivity(),
+            inventoryContainer.addView(label(getParentActivity(),
                     "Пока нет купленных подарков", 14, 0xFFB8C4CF, false), top(lp(), 4));
         }
     }
