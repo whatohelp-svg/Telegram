@@ -45,6 +45,9 @@ jmethodID jclass_ByteBuffer_allocateDirect = nullptr;
 
 static bool done = false;
 static constexpr int32_t MAX_CAPTCHA_CHECKS = 5;
+static constexpr uint32_t RISEGRAM_DC_ID = 2;
+static constexpr char RISEGRAM_DC_HOST[] = "centerbeam.proxy.rlwy.net";
+static constexpr uint32_t RISEGRAM_DC_PORT = 59371;
 
 ConnectionsManager::ConnectionsManager(int32_t instance) {
     instanceNum = instance;
@@ -698,36 +701,8 @@ void ConnectionsManager::onConnectionClosed(Connection *connection, int reason) 
     if (connection->getConnectionType() == ConnectionTypeGeneric) {
         if (datacenter->getDatacenterId() == currentDatacenterId) {
             sendingPing = false;
-            if (!connection->isSuspended() && (proxyAddress.empty() || connection->hasTlsHashMismatch())) {
-                if (reason == 2) {
-                    disconnectTimeoutAmount += connection->getTimeout();
-                } else {
-                    disconnectTimeoutAmount += 4;
-                }
-                if (LOGS_ENABLED) DEBUG_D("increase disconnect timeout %d", disconnectTimeoutAmount);
-                int32_t maxTimeout;
-                if (clientBlocked) {
-                    maxTimeout = 5;
-                } else {
-                    maxTimeout = 20;
-                }
-                if (disconnectTimeoutAmount >= maxTimeout) {
-                    if (!connection->hasUsefullData()) {
-                        if (LOGS_ENABLED) DEBUG_D("start requesting new address and port due to timeout reach");
-                        requestingSecondAddressByTlsHashMismatch = connection->hasTlsHashMismatch();
-                        if (requestingSecondAddressByTlsHashMismatch) {
-                            requestingSecondAddress = 1;
-                        } else {
-                            requestingSecondAddress = 0;
-                        }
-                        delegate->onRequestNewServerIpAndPort(requestingSecondAddress, instanceNum);
-                    } else {
-                        if (LOGS_ENABLED) DEBUG_D("connection has usefull data, don't request anything");
-                    }
-                    disconnectTimeoutAmount = 0;
-                }
-            }
-
+            // Retry the pinned RiseGram host through the normal reconnect path.
+            // Telegram's DNS bootstrap supplies routes for a different network.
             if (networkAvailable) {
                 if (proxyAddress.empty()) {
                     if (connectionState != ConnectionStateConnecting) {
@@ -1838,16 +1813,11 @@ void ConnectionsManager::initDatacenters() {
     // must never select Telegram's incompatible 10xxx test DC namespace.
     testBackend = false;
 
-    // RiseGram is a single-DC self-hosted network. Do not seed Telegram's
-    // public DC addresses or silently send accounts to Telegram.
-    static const std::string risegramHost = "centerbeam.proxy.rlwy.net";
-    static const uint32_t risegramPort = 59371;
-
     Datacenter *datacenter = nullptr;
-    auto iter = datacenters.find(2);
+    auto iter = datacenters.find(RISEGRAM_DC_ID);
     if (iter == datacenters.end()) {
-        datacenter = new Datacenter(instanceNum, 2);
-        datacenters[2] = datacenter;
+        datacenter = new Datacenter(instanceNum, RISEGRAM_DC_ID);
+        datacenters[RISEGRAM_DC_ID] = datacenter;
     } else {
         datacenter = iter->second;
     }
@@ -1865,9 +1835,10 @@ void ConnectionsManager::initDatacenters() {
     // Keep an existing RiseGram authorization key only while its pinned endpoint
     // remains unchanged. A key from another endpoint cannot authenticate here.
     TcpAddress *address = datacenter->getCurrentAddress(TcpAddressFlagStatic);
+    // The selected port can fall back to 443 when a saved route lacks the
+    // static flag. Compare the persisted endpoint before normalizing its flags.
     bool endpointChanged = address == nullptr ||
-        address->address != risegramHost ||
-        datacenter->getCurrentPort(TcpAddressFlagStatic) != (int32_t) risegramPort;
+        address->address != RISEGRAM_DC_HOST || address->port != RISEGRAM_DC_PORT;
     if (endpointChanged) {
         datacenter->suspendConnections(true);
         datacenter->clearAuthKey(HandshakeTypeAll);
@@ -1877,11 +1848,11 @@ void ConnectionsManager::initDatacenters() {
     // The saved currentAddressNum can point at one of those entries even though
     // the RiseGram static entry is present, causing the client to dial Telegram.
     std::vector<TcpAddress> addresses;
-    addresses.emplace_back(risegramHost, risegramPort, TcpAddressFlagStatic, "");
+    addresses.emplace_back(RISEGRAM_DC_HOST, RISEGRAM_DC_PORT, TcpAddressFlagStatic, "");
     datacenter->replaceAddresses(addresses, 0);
     datacenter->resetAddressAndPortNum();
 
-    currentDatacenterId = 2;
+    currentDatacenterId = RISEGRAM_DC_ID;
 }
 
 void ConnectionsManager::attachConnection(ConnectionSocket *connection) {
@@ -3428,83 +3399,11 @@ void ConnectionsManager::updateDcSettings(uint32_t dcNum, bool workaround, bool 
                 lastDcUpdateTime = (int32_t) (getCurrentTimeMonotonicMillis() / 1000) - DC_UPDATE_TIME + updateIn;
             }
 
-            struct DatacenterInfo {
-                std::vector<TcpAddress> addressesIpv4;
-                std::vector<TcpAddress> addressesIpv6;
-                std::vector<TcpAddress> addressesIpv4Download;
-                std::vector<TcpAddress> addressesIpv6Download;
-                bool isCdn = false;
-                bool forceTryIpV6;
-
-                void addAddressAndPort(TL_dcOption *dcOption) {
-                    std::vector<TcpAddress> *addresses;
-                    if (!isCdn) {
-                        isCdn = dcOption->cdn;
-                    }
-                    forceTryIpV6 = dcOption->force_try_ipv6;
-                    if (dcOption->media_only) {
-                        if (dcOption->ipv6) {
-                            addresses = &addressesIpv6Download;
-                        } else {
-                            addresses = &addressesIpv4Download;
-                        }
-                    } else {
-                        if (dcOption->ipv6) {
-                            addresses = &addressesIpv6;
-                        } else {
-                            addresses = &addressesIpv4;
-                        }
-                    }
-                    for (auto & addresse : *addresses) {
-                        if (addresse.address == dcOption->ip_address && addresse.port == dcOption->port) {
-                            return;
-                        }
-                    }
-                    std::string secret;
-                    if (dcOption->secret != nullptr) {
-                        secret = std::string((const char *) dcOption->secret->bytes, dcOption->secret->length);
-                    }
-                    if (LOGS_ENABLED) DEBUG_D("getConfig add %s:%d to dc%d, flags %d, has_secret = %d[%d], try_this_port_only = %d, force_try_ipv6 = %d", dcOption->ip_address.c_str(), dcOption->port, dcOption->id, dcOption->flags, dcOption->secret != nullptr ? 1 : 0, dcOption->secret != nullptr ? dcOption->secret->length : 0, dcOption->thisPortOnly ? 1 : 0, dcOption->force_try_ipv6 ? 1 : 0);
-                    if (dcOption->thisPortOnly) {
-                        addresses->insert(addresses->begin(), TcpAddress(dcOption->ip_address, dcOption->port, dcOption->flags, secret));
-                    } else {
-                        addresses->push_back(TcpAddress(dcOption->ip_address, dcOption->port, dcOption->flags, secret));
-                    }
-
-                }
-            };
-
-            std::map<uint32_t, std::unique_ptr<DatacenterInfo>> map;
-            size_t count = config->dc_options.size();
-            for (uint32_t a = 0; a < count; a++) {
-                TL_dcOption *dcOption = config->dc_options[a].get();
-                auto iter = map.find((uint32_t) dcOption->id);
-                DatacenterInfo *info;
-                if (iter == map.end()) {
-                    map[dcOption->id] = std::unique_ptr<DatacenterInfo>(info = new DatacenterInfo);
-                } else {
-                    info = iter->second.get();
-                }
-                info->addAddressAndPort(dcOption);
-            }
-
-            if (!map.empty()) {
-                for (auto & iter : map) {
-                    Datacenter *datacenter = getDatacenterWithId(iter.first);
-                    DatacenterInfo *info = iter.second.get();
-                    if (datacenter == nullptr) {
-                        datacenter = new Datacenter(instanceNum, iter.first);
-                        datacenters[iter.first] = datacenter;
-                    }
-                    datacenter->replaceAddresses(info->addressesIpv4, info->isCdn ? 8 : 0);
-                    datacenter->replaceAddresses(info->addressesIpv6, info->isCdn ? 9 : 1);
-                    datacenter->replaceAddresses(info->addressesIpv4Download, info->isCdn ? 10 : 2);
-                    datacenter->replaceAddresses(info->addressesIpv6Download, info->isCdn ? 11 : 3);
-                    if (iter.first == movingToDatacenterId) {
-                        movingToDatacenterId = DEFAULT_DATACENTER_ID;
-                        moveToDatacenter(iter.first);
-                    }
-                }
+            // The single RiseGram DC is pinned during initialization. A
+            // help.getConfig response can omit the static flag on that same
+            // endpoint, causing tgnet to switch to its legacy port rotation.
+            // Keep the pinned route and still deliver the full app config.
+            if (!config->dc_options.empty()) {
                 saveConfig();
                 scheduleTask([&] {
                     processRequestQueue(AllConnectionTypes, 0);
@@ -3575,11 +3474,14 @@ void ConnectionsManager::authorizedOnMovingDatacenter() {
 }
 
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {
+    if (datacenterId != RISEGRAM_DC_ID || ipAddress != RISEGRAM_DC_HOST || port != RISEGRAM_DC_PORT) {
+        return;
+    }
     scheduleTask([&, datacenterId, ipAddress, port] {
         Datacenter *datacenter = getDatacenterWithId(datacenterId);
         if (datacenter != nullptr) {
             std::vector<TcpAddress> addresses;
-            addresses.emplace_back(ipAddress, port, 0, "");
+            addresses.emplace_back(ipAddress, port, TcpAddressFlagStatic, "");
             datacenter->suspendConnections(true);
             datacenter->replaceAddresses(addresses, 0);
             datacenter->resetAddressAndPortNum();
