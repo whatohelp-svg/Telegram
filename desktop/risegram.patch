@@ -15,6 +15,156 @@ index fb62b97..d0c18f8 100644
  constexpr auto AppFile = "Telegram"_cs;
  constexpr auto AppVersion = 7004005;
  constexpr auto AppVersionStr = "7.4.5";
+diff --git a/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp b/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp
+index 7f3adde..4e5a04a 100644
+--- a/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp
++++ b/Telegram/SourceFiles/info/profile/info_profile_top_bar.cpp
+@@ -5,6 +5,15 @@ the official desktop application for the Telegram messaging service.
+ For license and copyright information please follow this link:
+ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+ */
++#include <QtNetwork/QNetworkAccessManager>
++#include <QtNetwork/QNetworkReply>
++#include <QtNetwork/QNetworkRequest>
++#include <QtCore/QJsonDocument>
++#include <QtCore/QJsonObject>
++#include <QtWidgets/QLabel>
++#include <QtGui/QPainter>
++#include <cmath>
++
+ #include "info/profile/info_profile_top_bar.h"
+ 
+ #include "api/api_peer_colors.h"
+@@ -372,6 +381,44 @@ Ui::RpWidget *SetupTabBarBackground(
+ 
+ } // namespace
+ 
++namespace {
++
++QPixmap IssuerBadges(bool rise, bool major, int size, qreal ratio) {
++	const auto width = size * (int(rise) + int(major));
++	QPixmap pixmap(qRound(width * ratio), qRound(size * ratio));
++	pixmap.setDevicePixelRatio(ratio);
++	pixmap.fill(Qt::transparent);
++	QPainter painter(&pixmap);
++	painter.setRenderHint(QPainter::Antialiasing);
++	painter.scale(size / 24., size / 24.);
++	const auto draw = [&](bool crown) {
++		QPolygonF seal;
++		for (int i = 0; i < 96; ++i) {
++			const auto angle = i * 6.283185307179586 / 96.;
++			const auto radius = 10.4 + .8 * std::cos(10 * angle);
++			seal << QPointF(12 + radius * std::cos(angle), 12 + radius * std::sin(angle));
++		}
++		painter.setPen(Qt::NoPen);
++		painter.setBrush(crown ? QColor(255, 202, 69) : QColor(34, 158, 217));
++		painter.drawPolygon(seal);
++		if (crown) {
++			painter.setBrush(QColor(38, 52, 66));
++			painter.drawPolygon(QPolygonF{ QPointF(5, 8), QPointF(9, 11),
++				QPointF(12, 6), QPointF(15, 11), QPointF(19, 8),
++				QPointF(17, 17), QPointF(7, 17) });
++		} else {
++			painter.setPen(QPen(Qt::white, 2.1, Qt::SolidLine, Qt::RoundCap, Qt::RoundJoin));
++			painter.drawPolyline(QPolygonF{ QPointF(6.5, 12), QPointF(10, 15.5), QPointF(17.5, 8) });
++		}
++		painter.translate(24, 0);
++	};
++	if (rise) draw(false);
++	if (major) draw(true);
++	return pixmap;
++}
++
++} // namespace
++
+ TopBar::TopBar(
+ 	not_null<Ui::RpWidget*> parent,
+ 	Descriptor descriptor)
+@@ -486,6 +533,32 @@ TopBar::TopBar(
+ }())
+ , _backToggles(std::move(descriptor.backToggles)) {
+ 	setObjectName(u"profileTopBar"_q);
++	if (_peer->isUser() && !_savedMessages && !_topic) {
++		const auto url = QUrl(u"https://risegram-risegram.up.railway.app/api/profiles/%1/verification"_q
++			.arg(peerToUser(_peer->id).bare));
++		auto network = new QNetworkAccessManager(this);
++		QNetworkRequest request(url);
++		request.setTransferTimeout(8000);
++		auto reply = network->get(request);
++		QObject::connect(reply, &QNetworkReply::finished, this, [=] {
++			network->deleteLater();
++			if (reply->error() != QNetworkReply::NoError) return;
++			const auto data = QJsonDocument::fromJson(reply->readAll()).object();
++			const auto rise = data.value(u"verified_risegram"_q).toBool();
++			const auto major = data.value(u"verified_major"_q).toBool();
++			if (!rise && !major) return;
++			_issuerBadges = new QLabel(this);
++			const auto size = _st.title.style.font->height;
++			_issuerBadges->setPixmap(IssuerBadges(rise, major, size, devicePixelRatioF()));
++			_issuerBadges->setFixedSize(size * (int(rise) + int(major)), size);
++			const auto issuers = (rise && major) ? u"RiseGram · Major"_q
++				: rise ? u"RiseGram"_q : u"Major"_q;
++			_issuerBadges->setAccessibleName(issuers);
++			_issuerBadges->setToolTip(issuers);
++			_issuerBadges->show();
++			updateLabelsPosition();
++		});
++	}
+ 	_peer->updateFull();
+ 	_communityEffect = (_source == Source::Community);
+ 	if (const auto broadcast = _peer->monoforumBroadcast()) {
+@@ -2200,7 +2273,8 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
+ 	const auto verifiedWidget = _verified ? _verified->widget() : nullptr;
+ 	const auto badgeWidget = _badge ? _badge->widget() : nullptr;
+ 	const auto botVerifyWidget = _botVerify ? _botVerify->widget() : nullptr;
+-	auto badgesWidth = 0;
++	const auto issuerWidth = _issuerBadges ? _issuerBadges->width() + st::infoVerifiedCheckPosition.x() : 0;
++	auto badgesWidth = issuerWidth;
+ 	if (verifiedWidget) {
+ 		badgesWidth += verifiedWidget->width();
+ 	}
+@@ -2231,7 +2305,7 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
+ 	const auto badgeBottom = titleTop + _title->height();
+ 	const auto margins = LargeCustomEmojiMargins();
+ 
+-	auto totalElementsWidth = _title->width();
++	auto totalElementsWidth = _title->width() + issuerWidth;
+ 	const auto botVerifySkip = botVerifyWidget
+ 		? botVerifyWidget->width() + st::infoVerifiedCheckPosition.x()
+ 		: 0;
+@@ -2259,6 +2333,11 @@ void TopBar::updateTitlePosition(float64 progressCurrent) {
+ 		titleLeft += margins.left() + botVerifySkip;
+ 	}
+ 
++	if (_issuerBadges) {
++		_issuerBadges->move(layoutDirection() == Qt::RightToLeft ? width() - titleLeft - _issuerBadges->width() : titleLeft,
++			titleTop + (_title->height() - _issuerBadges->height()) / 2);
++		titleLeft += issuerWidth;
++	}
+ 	_title->moveToLeft(titleLeft, titleTop);
+ 	const auto badgeLeft = titleLeft + _title->width();
+ 	if (_badge) {
+diff --git a/Telegram/SourceFiles/info/profile/info_profile_top_bar.h b/Telegram/SourceFiles/info/profile/info_profile_top_bar.h
+index 851ceb4..624800c 100644
+--- a/Telegram/SourceFiles/info/profile/info_profile_top_bar.h
++++ b/Telegram/SourceFiles/info/profile/info_profile_top_bar.h
+@@ -17,6 +17,8 @@ https://github.com/telegramdesktop/tdesktop/blob/master/LEGAL
+ #include "ui/rp_widget.h"
+ #include "ui/userpic_view.h"
+ 
++class QLabel;
++
+ namespace Api {
+ class Boosts;
+ } // namespace Api
+@@ -297,6 +299,7 @@ private:
+ 	uint64 _badgeCollectibleId = 0;
+ 
+ 	object_ptr<Ui::MarqueeLabel> _title;
++	QLabel *_issuerBadges = nullptr;
+ 	std::unique_ptr<Ui::StarsRating> _starsRating;
+ 	std::unique_ptr<Ui::AnimatedString> _tabSubtitle;
+ 	QString _tabSubtitleText;
 diff --git a/Telegram/SourceFiles/mtproto/config_loader.cpp b/Telegram/SourceFiles/mtproto/config_loader.cpp
 index 5d07404..4b142d2 100644
 --- a/Telegram/SourceFiles/mtproto/config_loader.cpp
