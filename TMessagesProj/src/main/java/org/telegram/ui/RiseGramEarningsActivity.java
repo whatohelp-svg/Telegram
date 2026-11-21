@@ -25,6 +25,8 @@ import java.io.ByteArrayOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.OutputStream;
+import java.math.BigDecimal;
+import java.math.RoundingMode;
 import java.net.HttpURLConnection;
 import java.net.URL;
 import java.nio.charset.StandardCharsets;
@@ -36,7 +38,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
     private static final int BLUE = 0xFF229ED9;
 
     private EditText phoneInput, codeInput, amountInput;
-    private TextView statusView, gramBalanceView, starsBalanceView;
+    private TextView statusView, gramBalanceView, gramEquivalentView, starsBalanceView;
     private LinearLayout loginPanel;
     private Button connectButton;
     private String sessionToken;
@@ -72,33 +74,36 @@ public class RiseGramEarningsActivity extends BaseFragment {
         scroll.addView(content, new ScrollView.LayoutParams(-1, -2));
         fragmentView = scroll;
 
-        content.addView(label(context, "Валюта RiseGram", 22, Color.WHITE, true), lp());
-        content.addView(label(context, "Внутренняя валюта приложения. Обменивай Gram на RiseStars по фиксированному курсу.", 14, 0xFFB8C4CF, false), top(lp(), 8));
+        content.addView(label(context, "Gram", 28, Color.WHITE, true), lp());
+        content.addView(label(context, "Криптовалюта RiseGram", 14, 0xFFB8C4CF, false), top(lp(), 4));
+        content.addView(label(context, "Фиксированный курс: 1 Gram = 100 RiseStars", 14, 0xFFE5B44A, true), top(lp(), 10));
 
         LinearLayout card = new LinearLayout(context);
         card.setOrientation(LinearLayout.VERTICAL);
         card.setPadding(AndroidUtilities.dp(16), AndroidUtilities.dp(14), AndroidUtilities.dp(16), AndroidUtilities.dp(14));
         GradientDrawable cardBg = new GradientDrawable();
         cardBg.setColor(0xFF1C2935);
-        cardBg.setCornerRadius(AndroidUtilities.dp(18));
+        cardBg.setCornerRadius(AndroidUtilities.dp(16));
         card.setBackground(cardBg);
         content.addView(card, top(lp(), 18));
 
-        card.addView(label(context, "ДОСТУПНЫЙ БАЛАНС", 12, 0xFF9BAEBC, true), lp());
+        card.addView(label(context, "КОЛИЧЕСТВО GRAM", 12, 0xFF9BAEBC, true), lp());
         gramBalanceView = label(context, "— Gram", 30, Color.WHITE, true);
-        card.addView(gramBalanceView, top(lp(), 5));
-        card.addView(label(context, "ЭКВИВАЛЕНТ В RISESTARS", 12, 0xFF9BAEBC, true), top(lp(), 16));
-        starsBalanceView = label(context, "— RiseStars", 22, Color.WHITE, true);
-        card.addView(starsBalanceView, top(lp(), 5));
+        card.addView(gramBalanceView, top(lp(), 4));
+        card.addView(label(context, "ЭКВИВАЛЕНТ ПО КУРСУ", 12, 0xFF9BAEBC, true), top(lp(), 15));
+        gramEquivalentView = label(context, "— RiseStars", 20, 0xFFE5B44A, true);
+        card.addView(gramEquivalentView, top(lp(), 4));
+        card.addView(label(context, "ОТДЕЛЬНЫЙ БАЛАНС RISESTARS", 12, 0xFF9BAEBC, true), top(lp(), 15));
+        starsBalanceView = label(context, "— RiseStars", 18, Color.WHITE, true);
+        card.addView(starsBalanceView, top(lp(), 4));
 
-        content.addView(label(context, "Обмен валюты", 17, Color.WHITE, true), top(lp(), 22));
-        content.addView(label(context, "1 Gram = 100 RiseStars", 14, 0xFFB8C4CF, false), top(lp(), 5));
-        amountInput = input(context, "Сумма обмена", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
-        content.addView(amountInput, top(lp(), 9));
-        Button gramToStars = button(context, "Gram → RiseStars");
+        content.addView(label(context, "Конвертация валюты", 17, Color.WHITE, true), top(lp(), 22));
+        amountInput = input(context, "Сумма (до 2 знаков после запятой)", InputType.TYPE_CLASS_NUMBER | InputType.TYPE_NUMBER_FLAG_DECIMAL);
+        content.addView(amountInput, top(lp(), 8));
+        Button gramToStars = button(context, "Обменять Gram → RiseStars");
         content.addView(gramToStars, top(lp(), 9));
         gramToStars.setOnClickListener(v -> exchange("gram_to_stars"));
-        Button starsToGram = button(context, "RiseStars → Gram");
+        Button starsToGram = button(context, "Обменять RiseStars → Gram");
         content.addView(starsToGram, top(lp(), 8));
         starsToGram.setOnClickListener(v -> exchange("stars_to_gram"));
 
@@ -110,8 +115,8 @@ public class RiseGramEarningsActivity extends BaseFragment {
         loginBg.setCornerRadius(AndroidUtilities.dp(14));
         loginPanel.setBackground(loginBg);
         content.addView(loginPanel, top(lp(), 22));
-        loginPanel.addView(label(context, "Подключение аккаунта RiseGram", 16, Color.WHITE, true), lp());
-        loginPanel.addView(label(context, "Нужен один вход для доступа к балансу. Это отдельная сессия RiseGram, не повторный вход в Telegram.", 13, 0xFF9BAEBC, false), top(lp(), 5));
+        loginPanel.addView(label(context, "Привязка аккаунта RiseGram", 16, Color.WHITE, true), lp());
+        loginPanel.addView(label(context, "Подтверди аккаунт один раз, чтобы загрузить настоящие количества Gram и RiseStars. Это не меняет вход в Telegram.", 13, 0xFF9BAEBC, false), top(lp(), 5));
         phoneInput = input(context, "Номер аккаунта RiseGram", InputType.TYPE_CLASS_PHONE);
         phoneInput.setText(UserConfig.getInstance(currentAccount).getClientPhone());
         loginPanel.addView(phoneInput, top(lp(), 9));
@@ -120,19 +125,19 @@ public class RiseGramEarningsActivity extends BaseFragment {
         Button request = button(context, "Получить код");
         loginPanel.addView(request, top(lp(), 9));
         request.setOnClickListener(v -> requestCode());
-        Button verify = button(context, "Подключить аккаунт");
+        Button verify = button(context, "Подтвердить аккаунт");
         loginPanel.addView(verify, top(lp(), 8));
         verify.setOnClickListener(v -> verifyCode());
 
-        connectButton = button(context, sessionToken == null || sessionToken.isEmpty() ? "Скрыть подключение" : "Подключить другой аккаунт");
+        connectButton = button(context, sessionToken == null || sessionToken.isEmpty() ? "Привязать аккаунт" : "Сменить аккаунт");
         content.addView(connectButton, top(lp(), 14));
         connectButton.setOnClickListener(v -> {
             if (loginPanel.getVisibility() == View.VISIBLE) {
                 loginPanel.setVisibility(View.GONE);
-                connectButton.setText(sessionToken == null || sessionToken.isEmpty() ? "Подключить аккаунт" : "Подключить другой аккаунт");
+                connectButton.setText(sessionToken == null || sessionToken.isEmpty() ? "Привязать аккаунт" : "Сменить аккаунт");
             } else {
                 loginPanel.setVisibility(View.VISIBLE);
-                connectButton.setText("Скрыть подключение");
+                connectButton.setText("Скрыть");
             }
         });
         loginPanel.setVisibility(sessionToken == null || sessionToken.isEmpty() ? View.VISIBLE : View.GONE);
@@ -141,7 +146,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
         content.addView(statusView, top(lp(), 14));
 
         if (sessionToken != null && !sessionToken.isEmpty()) loadBalances();
-        else setStatus("Подключи аккаунт RiseGram, чтобы загрузить баланс");
+        else setStatus("Привяжи аккаунт RiseGram для загрузки реальных количеств валюты");
         return fragmentView;
     }
 
@@ -274,7 +279,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
             if (sessionToken.isEmpty()) { setStatus("Сервер не выдал сессию"); return; }
             getParentActivity().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().putString(TOKEN_KEY, sessionToken).apply();
             loginPanel.setVisibility(View.GONE);
-            connectButton.setText("Подключить другой аккаунт");
+            connectButton.setText("Сменить аккаунт");
             setStatus("Аккаунт RiseGram подключён. Загружаем баланс…");
             loadBalances();
         });
@@ -284,7 +289,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
         sessionToken = null;
         if (getParentActivity() != null) getParentActivity().getSharedPreferences(PREFS, Context.MODE_PRIVATE).edit().remove(TOKEN_KEY).apply();
         if (loginPanel != null) loginPanel.setVisibility(View.VISIBLE);
-        if (connectButton != null) connectButton.setText("Скрыть подключение");
+        if (connectButton != null) connectButton.setText("Привязать аккаунт");
         setStatus("Сессия RiseGram истекла. Подключи аккаунт заново");
     }
 
@@ -302,14 +307,18 @@ public class RiseGramEarningsActivity extends BaseFragment {
     private void exchange(String direction) {
         if (sessionToken == null || sessionToken.isEmpty()) { setStatus("Сначала подключи аккаунт RiseGram"); return; }
         String value = amountInput == null ? "" : amountInput.getText().toString().trim().replace(',', '.');
-        final double amount;
-        try { amount = Double.parseDouble(value); }
-        catch (Exception e) { setStatus("Введи корректную сумму"); return; }
-        if (Double.isNaN(amount) || Double.isInfinite(amount) || amount <= 0) { setStatus("Сумма должна быть больше нуля"); return; }
+        final BigDecimal amount;
+        try {
+            amount = new BigDecimal(value).setScale(2, RoundingMode.UNNECESSARY);
+        } catch (Exception e) {
+            setStatus("Введи положительную сумму с точностью до 2 знаков после запятой");
+            return;
+        }
+        if (amount.signum() <= 0) { setStatus("Сумма должна быть больше нуля"); return; }
         final String token = sessionToken;
         runApi("Проводим обмен…", () -> {
             JSONObject body = new JSONObject();
-            body.put("amount", amount);
+            body.put("amount", amount.doubleValue());
             body.put("direction", direction);
             return apiRequest("POST", "/api/exchange", token, body);
         }, response -> {
@@ -324,6 +333,7 @@ public class RiseGramEarningsActivity extends BaseFragment {
 
     private void updateBalances(double gram, double risestars) {
         if (gramBalanceView != null) gramBalanceView.setText(String.format(Locale.US, "%.2f Gram", gram));
-        if (starsBalanceView != null) starsBalanceView.setText(String.format(Locale.US, "%.0f RiseStars", risestars));
+        if (gramEquivalentView != null) gramEquivalentView.setText(String.format(Locale.US, "%.2f RiseStars", gram * 100.0d));
+        if (starsBalanceView != null) starsBalanceView.setText(String.format(Locale.US, "%.2f RiseStars", risestars));
     }
 }
