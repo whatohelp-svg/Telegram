@@ -197,3 +197,18 @@ At the start of a continuation:
 - Backend commit `73dc20f62ce0d70d2531461c5bb9e5de7078c789` contains the reconnect zero-user resolver correction. The MTProto build script `server/patches/patch_mtproto.py` also instruments temporary-key binding and sign-in completion and retries `auth.signIn` idempotently only when the same already-authorized key is signing into the same phone.
 - The live MTProto service restarted successfully with that patch in the built image. Logs checked after the latest deployment did not match `AUTH_KEY_UNREGISTERED`, but there was no new device login attempt in that window. This is not proof that the user's cold-relaunch bug is fixed.
 - Mandatory pre-release test: sign in on the Android device, close/force-stop the app, reopen it without clearing app data, and verify chats load under the same account. Also test after a service restart. Preserve the local Telegram auth key and the server's persistent RSA/Postgres/Redis state. If it fails, capture the client's FileLog and matching MTProto logs from the exact timestamp before changing auth/session code.
+
+
+## Verification model correction (2026-11-21)
+
+The verification model has two independent account flags; do not infer Major verification from the username `@major`.
+
+- `verified_risegram`: issued by the RiseGram team.
+- `verified_major`: issued by Major.
+- Both may be enabled simultaneously.
+- Legacy `verified` is maintained as the aggregate used by the MTProto native verified flag. Existing legacy verified users are migrated to RiseGram verification to preserve their existing badge; the owner is explicitly RiseGram-verified.
+- Backend admin profile now has separate issue/revoke controls for RiseGram and Major. The bot's user-facing badge text can show both independently.
+- Paid Major account verification now sets `verified_major`, and refund revocation clears only that flag.
+- `/api/me` exposes both `verified_risegram` and `verified_major` separately.
+- Android profile rendering still needs to be wired to these two API fields. Do not keep deriving Major from the `@major` username. Show separate visual marks and labels when client integration is completed.
+- Backend test run #21 (`44876148447`) and validation run #321 (`44876148476`) passed on the verification changes. Android APK, MTProto image and backend validation runs #151, #129 and #322 were still running at the last check.
