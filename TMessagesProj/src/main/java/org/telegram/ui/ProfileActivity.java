@@ -696,6 +696,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private int premiumSectionsRow;
     private int botAppRow;
     private int unofficialSecurityRiskRow;
+    private int majorVerificationRow;
     private int unofficialSecurityRiskDividerRow;
 
     private int linkedCommunityRow;
@@ -10754,6 +10755,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
         botPermissionLocation = -1;
         botPermissionsDivider = -1;
         unofficialSecurityRiskRow = -1;
+        majorVerificationRow = -1;
         unofficialSecurityRiskDividerRow = -1;
         linkedCommunityRow = -1;
         linkedCommunityDividerRow = -1;
@@ -10967,6 +10969,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
+                }
+                if (user != null && user.verified) {
+                    majorVerificationRow = rowCount++;
                 }
                 if (userInfo != null) {
                     if (userInfo.birthday != null) {
@@ -13750,6 +13755,9 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     TextView textView = (TextView) holder.itemView;
                     textView.setPadding(dp(16), dp(10), dp(16), dp(10));
                     if (position == unofficialSecurityRiskRow) {
+                        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 14);
+                        textView.setTextColor(Theme.getColor(Theme.key_color_red, resourcesProvider));
+                        textView.setCompoundDrawablesRelative(null, null, null, null);
                         final SpannableStringBuilder sb = new SpannableStringBuilder("⚠️");
                         final ColoredImageSpan span = new ColoredImageSpan(R.drawable.round_warn);
                         span.translate(0, dp(1));
@@ -13759,6 +13767,17 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         sb.append(" ");
                         sb.append(formatString(R.string.ProfileUnofficialSecurityRisk, UserObject.getForcedFirstName(getMessagesController().getUser(userId))));
                         textView.setText(sb);
+                    } else if (position == majorVerificationRow) {
+                        textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
+                        textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
+                        textView.setGravity(Gravity.CENTER_VERTICAL);
+                        textView.setText("Major · Аккаунт верифицирован официальной компанией RiseGram");
+                        Drawable majorIcon = ContextCompat.getDrawable(mContext, R.drawable.major_badge);
+                        if (majorIcon != null) {
+                            majorIcon.setBounds(0, 0, dp(20), dp(20));
+                            textView.setCompoundDrawablesRelative(majorIcon, null, null, null);
+                            textView.setCompoundDrawablePadding(dp(8));
+                        }
                     }
                     break;
                 case VIEW_TYPE_PREMIUM_TEXT_CELL:
@@ -14443,7 +14462,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 return VIEW_TYPE_BOT_APP;
             } else if (position == infoSectionRow || position == infoAffiliateRow) {
                 return VIEW_TYPE_SHADOW_TEXT;
-            } else if (position == unofficialSecurityRiskRow) {
+            } else if (position == unofficialSecurityRiskRow || position == majorVerificationRow) {
                 return VIEW_TYPE_TEXT2;
             } else if (position == linkedCommunityRow) {
                 return VIEW_TYPE_LINKED_COMMUNITY;
@@ -15701,6 +15720,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             put(++pointer, userInfoRow, sparseIntArray);
             put(++pointer, channelInfoRow, sparseIntArray);
             put(++pointer, usernameRow, sparseIntArray);
+            put(++pointer, majorVerificationRow, sparseIntArray);
             put(++pointer, notificationsDividerRow, sparseIntArray);
             put(++pointer, reportDividerRow, sparseIntArray);
             put(++pointer, notificationsRow, sparseIntArray);
