@@ -1,0 +1,4 @@
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:right="24dp" android:drawable="@drawable/risegram_verified" />
+    <item android:left="24dp" android:drawable="@drawable/major_verified" />
+</layer-list>
