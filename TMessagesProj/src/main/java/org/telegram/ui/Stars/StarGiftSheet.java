@@ -7745,6 +7745,11 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
             inputSavedStarGiftSlug.slug = g.gift.slug;
             return inputSavedStarGiftSlug;
         }
+        if (dialogId > 0 && g.msg_id > 0) {
+            final TL_stars.TL_inputSavedStarGiftUser input = new TL_stars.TL_inputSavedStarGiftUser();
+            input.msg_id = g.msg_id;
+            return input;
+        }
         final TL_stars.TL_inputSavedStarGiftChat stargift = new TL_stars.TL_inputSavedStarGiftChat();
         stargift.peer = MessagesController.getInstance(UserConfig.selectedAccount).getInputPeer(dialogId);
         stargift.saved_id = g.saved_id;

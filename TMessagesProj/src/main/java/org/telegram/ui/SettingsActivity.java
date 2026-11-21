@@ -798,6 +798,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
 
         items.add(UItem.asShadow(null));
 
+        items.add(SettingCell.Factory.of(14, 0xFF1BA4ED, 0xFF1488E1, R.drawable.settings_wallet, "Money"));
+        items.add(UItem.asShadow(null));
+
         if (!getMessagesController().premiumFeaturesBlocked()) {
             items.add(SettingCell.Factory.of(11, 0xFFB659FF, 0xFF617CFF, R.drawable.settings_premium, getString(R.string.TelegramPremium)));
         }
@@ -931,6 +934,9 @@ public class SettingsActivity extends BaseFragment implements NotificationCenter
                 break;
             case 13:
                 presentSettingFragment(new TONIntroActivity());
+                break;
+            case 14:
+                presentSettingFragment(new org.telegram.ui.Wallet.WalletActivity());
                 break;
             case 15:
                 presentSettingFragment(new PremiumPreviewFragment(PremiumPreviewFragment.FEATURES_BUSINESS, "settings"));
