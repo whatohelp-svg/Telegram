@@ -701,36 +701,8 @@ void ConnectionsManager::onConnectionClosed(Connection *connection, int reason) 
     if (connection->getConnectionType() == ConnectionTypeGeneric) {
         if (datacenter->getDatacenterId() == currentDatacenterId) {
             sendingPing = false;
-            if (!connection->isSuspended() && (proxyAddress.empty() || connection->hasTlsHashMismatch())) {
-                if (reason == 2) {
-                    disconnectTimeoutAmount += connection->getTimeout();
-                } else {
-                    disconnectTimeoutAmount += 4;
-                }
-                if (LOGS_ENABLED) DEBUG_D("increase disconnect timeout %d", disconnectTimeoutAmount);
-                int32_t maxTimeout;
-                if (clientBlocked) {
-                    maxTimeout = 5;
-                } else {
-                    maxTimeout = 20;
-                }
-                if (disconnectTimeoutAmount >= maxTimeout) {
-                    if (!connection->hasUsefullData()) {
-                        if (LOGS_ENABLED) DEBUG_D("start requesting new address and port due to timeout reach");
-                        requestingSecondAddressByTlsHashMismatch = connection->hasTlsHashMismatch();
-                        if (requestingSecondAddressByTlsHashMismatch) {
-                            requestingSecondAddress = 1;
-                        } else {
-                            requestingSecondAddress = 0;
-                        }
-                        delegate->onRequestNewServerIpAndPort(requestingSecondAddress, instanceNum);
-                    } else {
-                        if (LOGS_ENABLED) DEBUG_D("connection has usefull data, don't request anything");
-                    }
-                    disconnectTimeoutAmount = 0;
-                }
-            }
-
+            // Retry the pinned RiseGram host through the normal reconnect path.
+            // Telegram's DNS bootstrap supplies routes for a different network.
             if (networkAvailable) {
                 if (proxyAddress.empty()) {
                     if (connectionState != ConnectionStateConnecting) {
@@ -3502,11 +3474,14 @@ void ConnectionsManager::authorizedOnMovingDatacenter() {
 }
 
 void ConnectionsManager::applyDatacenterAddress(uint32_t datacenterId, std::string ipAddress, uint32_t port) {
+    if (datacenterId != RISEGRAM_DC_ID || ipAddress != RISEGRAM_DC_HOST || port != RISEGRAM_DC_PORT) {
+        return;
+    }
     scheduleTask([&, datacenterId, ipAddress, port] {
         Datacenter *datacenter = getDatacenterWithId(datacenterId);
         if (datacenter != nullptr) {
             std::vector<TcpAddress> addresses;
-            addresses.emplace_back(ipAddress, port, 0, "");
+            addresses.emplace_back(ipAddress, port, TcpAddressFlagStatic, "");
             datacenter->suspendConnections(true);
             datacenter->replaceAddresses(addresses, 0);
             datacenter->resetAddressAndPortNum();
