@@ -10970,7 +10970,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (user != null && username != null) {
                     usernameRow = rowCount++;
                 }
-                if (user != null && user.verified) {
+                if (user != null) {
                     majorVerificationRow = rowCount++;
                 }
                 if (userInfo != null) {
@@ -13782,12 +13782,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
                         textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
                         textView.setGravity(Gravity.CENTER_VERTICAL);
-                        textView.setText("Major · Аккаунт верифицирован официальной компанией RiseGram");
-                        Drawable majorIcon = ContextCompat.getDrawable(mContext, R.drawable.major_badge);
-                        if (majorIcon != null) {
-                            majorIcon.setBounds(0, 0, dp(20), dp(20));
-                            textView.setCompoundDrawablesRelative(majorIcon, null, null, null);
-                            textView.setCompoundDrawablePadding(dp(8));
+                        TLRPC.User profileUser = getMessagesController().getUser(userId);
+                        if (profileUser != null && profileUser.verified) {
+                            textView.setText("Major · Аккаунт верифицирован официальной компанией RiseGram");
+                            Drawable majorIcon = ContextCompat.getDrawable(mContext, R.drawable.major_badge);
+                            if (majorIcon != null) {
+                                majorIcon.setBounds(0, 0, dp(20), dp(20));
+                                textView.setCompoundDrawablesRelative(majorIcon, null, null, null);
+                                textView.setCompoundDrawablePadding(dp(8));
+                            }
+                        } else {
+                            textView.setText("Аккаунт верифицирован официальной компанией RiseGram");
+                            textView.setCompoundDrawablesRelative(null, null, null, null);
+                            textView.setCompoundDrawablePadding(0);
                         }
                     }
                     break;
