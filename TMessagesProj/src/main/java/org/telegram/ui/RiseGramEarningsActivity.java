@@ -87,13 +87,24 @@ public class RiseGramEarningsActivity extends BaseFragment {
         card.setBackground(cardBg);
         content.addView(card, top(lp(), 18));
 
+        Button giftDrops = button(context, "🎁 NFT-подарки и дропы");
+        content.addView(giftDrops, top(lp(), 12));
+        giftDrops.setOnClickListener(v -> {
+            if (sessionToken == null || sessionToken.isEmpty()) {
+                loginPanel.setVisibility(View.VISIBLE);
+                setStatus("Сначала подключи аккаунт RiseGram, чтобы открыть дропы");
+            } else {
+                presentFragment(new RiseGramGiftsActivity());
+            }
+        });
+
         card.addView(label(context, "КОЛИЧЕСТВО GRAM", 12, 0xFF9BAEBC, true), lp());
         gramBalanceView = label(context, "— Gram", 30, Color.WHITE, true);
         card.addView(gramBalanceView, top(lp(), 4));
         card.addView(label(context, "ЭКВИВАЛЕНТ ПО КУРСУ", 12, 0xFF9BAEBC, true), top(lp(), 15));
         gramEquivalentView = label(context, "— RiseStars", 20, 0xFFE5B44A, true);
         card.addView(gramEquivalentView, top(lp(), 4));
-        card.addView(label(context, "ОТДЕЛЬНЫЙ БАЛАНС RISESTARS", 12, 0xFF9BAEBC, true), top(lp(), 15));
+        card.addView(label(context, "БАЛАНС RISESTARS", 12, 0xFF9BAEBC, true), top(lp(), 15));
         starsBalanceView = label(context, "— RiseStars", 18, Color.WHITE, true);
         card.addView(starsBalanceView, top(lp(), 4));
 
