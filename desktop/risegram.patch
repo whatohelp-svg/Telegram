@@ -42,7 +42,7 @@ index 5d07404..4b142d2 100644
  
  void ConfigLoader::addSpecialEndpoint(
 diff --git a/Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp b/Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp
-index 1d79ae9..5345c80 100644
+index 1d79ae9..41b73ec 100644
 --- a/Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp
 +++ b/Telegram/SourceFiles/mtproto/mtproto_dc_options.cpp
 @@ -22,60 +22,14 @@ constexpr auto kVersion = 2;
@@ -171,3 +171,15 @@ index 1d79ae9..5345c80 100644
  }
  
  void DcOptions::processFromList(
+@@ -387,10 +310,7 @@ std::vector<DcId> DcOptions::CountOptionsDifference(
+ }
+ 
+ QByteArray DcOptions::serialize() const {
+-	if (_immutable) {
+-		// Don't write the overriden options to our settings.
+-		return DcOptions(_environment).serialize();
+-	}
++	// The pinned route is the default RiseGram route and is safe to persist.
+ 
+ 	ReadLocker lock(this);
+ 
