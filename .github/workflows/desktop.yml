@@ -129,6 +129,7 @@ jobs:
 
       - name: Libraries.
         run: |
+          set SKIP_DUMPSYMS=1
           set CARGO_INCREMENTAL=0
           %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent
 
