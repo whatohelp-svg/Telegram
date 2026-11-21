@@ -40,6 +40,7 @@ public class RiseGramGiftsActivity extends BaseFragment {
     private LinearLayout dropsContainer;
     private LinearLayout inventoryContainer;
     private TextView statusView;
+    private TextView accountBalancesView;
     private boolean busy;
 
     private interface ApiCall { JSONObject run() throws Exception; }
@@ -76,6 +77,12 @@ public class RiseGramGiftsActivity extends BaseFragment {
         content.addView(label(context,
                 "Ограниченные NFT-дропы. Покупка списывает RiseStars с общего баланса аккаунта, а подарок отправляется в связанный Telegram.",
                 14, 0xFFB8C4CF, false), top(lp(), 6));
+
+        accountBalancesView = label(context, "💎 Gram: —\n⭐ RiseStars: —", 15, Color.WHITE, true);
+        accountBalancesView.setPadding(AndroidUtilities.dp(12), AndroidUtilities.dp(10),
+                AndroidUtilities.dp(12), AndroidUtilities.dp(10));
+        accountBalancesView.setBackground(background(CARD, 12));
+        content.addView(accountBalancesView, top(lp(), 12));
 
         statusView = label(context, "", 13, 0xFF9BAEBC, false);
         content.addView(statusView, top(lp(), 12));
@@ -160,11 +167,19 @@ public class RiseGramGiftsActivity extends BaseFragment {
             AndroidUtilities.runOnUIThread(() -> {
                 busy = false;
                 if (finalFailure != null) {
-                    if (finalFailure instanceof ApiException && ((ApiException) finalFailure).status == 401) {
+                    boolean unauthorized = finalFailure instanceof ApiException
+                            && ((ApiException) finalFailure).status == 401;
+                    if (unauthorized) {
                         clearSession();
                     }
                     setStatus(finalFailure.getMessage() == null
                             ? "Ошибка запроса к серверу RiseGram" : finalFailure.getMessage());
+                    // A delivery timeout can mean Telegram accepted the gift while
+                    // the HTTP response was lost. Never retry the purchase here:
+                    // refresh the server-owned inventory so its pending state is visible.
+                    if (!unauthorized && loading.startsWith("Резервируем тираж")) {
+                        loadGifts(true);
+                    }
                     return;
                 }
                 result.onResult(finalResponse == null ? new JSONObject() : finalResponse);
@@ -225,19 +240,33 @@ public class RiseGramGiftsActivity extends BaseFragment {
     }
 
     private void loadGifts() {
+        loadGifts(false);
+    }
+
+    private void loadGifts(boolean checkingPurchase) {
         if (sessionToken == null || sessionToken.isEmpty()) {
             setStatus("Сначала подключи аккаунт RiseGram в разделе Gram");
             return;
         }
-        runApi("Загружаем NFT-дропы…", () -> apiRequest("GET", "/api/gifts", null), response -> {
-            renderDrops(response);
-            setStatus("Каталог и баланс обновлены");
-        });
+        runApi(checkingPurchase ? "Проверяем статус покупки…" : "Загружаем NFT-дропы…",
+                () -> apiRequest("GET", "/api/gifts", null), response -> {
+                    renderDrops(response);
+                    setStatus(checkingPurchase
+                            ? "Статус проверен. Смотри «Мою коллекцию» — покупка может быть в обработке"
+                            : "Каталог и баланс обновлены");
+                });
     }
 
     private void renderDrops(JSONObject response) {
         if (dropsContainer == null || getParentActivity() == null) return;
         dropsContainer.removeAllViews();
+        JSONObject user = response.optJSONObject("user");
+        if (accountBalancesView != null && user != null) {
+            accountBalancesView.setText(String.format(Locale.US,
+                    "💎 Gram: %.2f\n⭐ RiseStars: %,.2f",
+                    user.optDouble("gram_balance", 0),
+                    user.optDouble("risestars", 0)));
+        }
         JSONArray drops = response.optJSONArray("drops");
         int botStars = response.isNull("bot_stars_balance") ? -1 : response.optInt("bot_stars_balance", -1);
         if (drops == null || drops.length() == 0) {
