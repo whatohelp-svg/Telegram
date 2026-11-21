@@ -171,3 +171,29 @@ At the start of a continuation:
 - Latest MTProto Railway deployment bf9745ac-ca28-426c-b483-4bdab2ca4a7c was still BUILDING at the last check. A prior deployment on the previous server head was SUCCESS; do not treat the new reconnect patch as deployed until this latest build reports SUCCESS.
 - Android master APK workflow 44872031256 was running the clean native build at the last check. Its APK artifact and all four ABI libraries have not yet been inspected.
 - No real-device cold-close/relaunch test, admin-grant mirror test, or Telegram NFT gift purchase has been performed. These remain release blockers. The NFT catalog includes all currently bot-sendable, upgrade-capable gifts returned by Bot API; it is not a marketplace-wide inventory of every existing collectible.
+
+
+## Continuation update (2026-11-21 11:18 +05)
+
+### Current Android client commit
+
+- Commit `c5e3b85110805b13cfedd1d75fd8d6dd670ad711` updates `TMessagesProj/src/main/java/org/telegram/ui/RiseGramGiftsActivity.java`.
+- The native NFT drop screen now reads the authenticated `user` object returned by `GET /api/gifts` and displays the current shared Gram and RiseStars balances. These values come from the same RiseGram account row used by the bot and admin tools.
+- If a gift purchase request fails or times out after reservation, the client now refreshes `GET /api/gifts` instead of retrying the purchase. This makes a server-side `pending` gift visible in the inventory and avoids an automatic duplicate send.
+- Android GitHub Actions run #70 (`44874688734`, commit `c5e3b85110805b13cfedd1d75fd8d6dd670ad711`) was still `in_progress` when checked. It is not a verified APK yet.
+- The profile footer is already implemented in current `ProfileActivity.java`: it is shown only for a server-verified user; `@major` receives the Major text/icon and other verified accounts receive the RiseGram text/icon. Do not hard-code verification in the client.
+
+### Current backend and gift-drop state
+
+- The active Railway source branch is `whatohelp-svg/risegram:feature/market-economy-sync`, currently at `b84f699541ffdd4ad018ff603419ee75b1cb15a4`.
+- Backend validation run #312 (`44872351204`), backend test run #14 (`44872346941`), and MTProto image build run #126 (`44872351261`) all completed successfully for that commit.
+- Railway `risegram` API/bot and `risegram-mtproto` services were both `SUCCESS` on their latest observed deployments. The services use the persistent account/economy and MTProto state volumes; do not delete or recreate those volumes to troubleshoot login.
+- The bot main menu no longer contains a player-facing Gifts shop. The bot retains only the admin `adm:gifts` drop-management screen. NFT purchase/drop discovery is in the Android RiseGram client; the bot sends the gift through Bot API.
+- The catalog is sourced from Telegram Bot API `getAvailableGifts` and is limited to gifts that this bot can send and upgrade to unique NFT gifts. Do not claim it lists every collectible already owned by users or NFTs unavailable to the bot.
+- The shared account record stores `risestars` and `gram_balance`; bot main screen, admin balance grant, `/api/me`, and `/api/gifts` use those same fields. Exchange remains fixed at 1 Gram = 100 RiseStars.
+
+### Login/session release gate
+
+- Backend commit `73dc20f62ce0d70d2531461c5bb9e5de7078c789` contains the reconnect zero-user resolver correction. The MTProto build script `server/patches/patch_mtproto.py` also instruments temporary-key binding and sign-in completion and retries `auth.signIn` idempotently only when the same already-authorized key is signing into the same phone.
+- The live MTProto service restarted successfully with that patch in the built image. Logs checked after the latest deployment did not match `AUTH_KEY_UNREGISTERED`, but there was no new device login attempt in that window. This is not proof that the user's cold-relaunch bug is fixed.
+- Mandatory pre-release test: sign in on the Android device, close/force-stop the app, reopen it without clearing app data, and verify chats load under the same account. Also test after a service restart. Preserve the local Telegram auth key and the server's persistent RSA/Postgres/Redis state. If it fails, capture the client's FileLog and matching MTProto logs from the exact timestamp before changing auth/session code.
