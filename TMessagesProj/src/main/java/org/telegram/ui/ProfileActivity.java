@@ -614,6 +614,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
     private final static int enable_no_forwards = 46;
     private final static int disable_no_forwards = 47;
     private final static int send_money = 48;
+    private final static int risegram_profile_music = 95001;
 
     private Rect rect = new Rect();
 
@@ -2679,6 +2680,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     }
                 } else if (id == edit_profile) {
                     presentFragment(new UserInfoActivity());
+                } else if (id == risegram_profile_music) {
+                    presentFragment(new RiseGramProfileMusicActivity());
                 } else if (id == invite_to_group) {
                     final TLRPC.User user = getMessagesController().getUser(userId);
                     if (user == null) {
@@ -5462,6 +5465,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             avatarsViewPager.setChatInfo(chatInfo);
         }
         avatarContainer2.addView(avatarsViewPager);
+        if (userId != 0) {
+            avatarContainer2.addView(new RiseGramProfileGlowView(context),
+                LayoutHelper.createFrame(LayoutHelper.MATCH_PARENT, 280, Gravity.TOP));
+        }
         avatarContainer2.addView(avatarsBlurView, LayoutHelper.createFrame(-1, 74 + 64));
         avatarContainer2.addView(overlaysView);
         if (actionsView != null) {
@@ -12250,6 +12257,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 editColorItem = otherItem.addSubItem(edit_color, R.drawable.menu_profile_colors, LocaleController.getString(R.string.ProfileColorEdit));
                 updateEditColorIcon();
+                otherItem.addSubItem(risegram_profile_music, R.drawable.msg_edit, "🎵 Музыка профиля RiseGram");
                 if (myProfile) {
                     setUsernameItem = otherItem.addSubItem(set_username, R.drawable.menu_username_change, getString(R.string.ProfileUsernameEdit));
                     linkItem = otherItem.addSubItem(copy_link_profile, R.drawable.msg_link2, getString(R.string.ProfileCopyLink));
