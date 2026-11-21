@@ -11692,8 +11692,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 }
                 if (leftIcon == null && currentEncryptedChat == null && user.verified) {
                     nameTextView.setLeftDrawableOutside(true);
-                    Drawable majorBadge = ContextCompat.getDrawable(getParentActivity(), R.drawable.major_verified).mutate();
-                    leftIcon = majorBadge;
+                    boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
+                    Drawable verifiedBadge = ContextCompat.getDrawable(
+                            getParentActivity(),
+                            majorAccount ? R.drawable.major_verified : R.drawable.risegram_verified
+                    ).mutate();
+                    leftIcon = verifiedBadge;
                 } else if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
@@ -11786,7 +11790,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 description.setSpan(new DotDividerSpan(), newString2.length() + 1, newString2.length() + 2, 0);
                 photoDescriptionText = description;
             }
-            profileStatusText = user.verified ? "Аккаунт подтверждён организацией Major" : newString2;
+            if (user.verified) {
+                boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
+                profileStatusText = majorAccount
+                        ? "Аккаунт верифицирован организацией Major"
+                        : "Аккаунт верифицирован официальной компанией «RiseGram»";
+            } else {
+                profileStatusText = newString2;
+            }
             updateOnlineText(true);
 
             if (previousTransitionFragment != null) {
