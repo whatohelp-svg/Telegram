@@ -910,11 +910,23 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
 
     private boolean rightDrawableIsScamOrVerified = false;
     private boolean rightDrawableIsScam = false;
+    private boolean titleVerifiedByServer = false;
+    private Drawable risegramVerifiedTitleIcon;
+
+    private Drawable getRiseGramVerifiedTitleIcon() {
+        if (risegramVerifiedTitleIcon == null) {
+            risegramVerifiedTitleIcon = ContextCompat.getDrawable(getContext(), R.drawable.risegram_verified);
+        }
+        return risegramVerifiedTitleIcon;
+    }
     private String rightDrawableContentDescription = null;
     private String rightDrawable2ContentDescription = null;
 
     public void setTitleIcons(Drawable leftIcon, Drawable mutedIcon) {
-        titleTextView.setLeftDrawable(leftIcon);
+        // Native supergroups/channels often have only the official verification
+        // flag and no bot_verification_icon. Show the brand icon in that case.
+        titleTextView.setLeftDrawable(leftIcon == null && titleVerifiedByServer
+                ? getRiseGramVerifiedTitleIcon() : leftIcon);
         if (!rightDrawableIsScamOrVerified && !rightDrawableIsScam) {
             if (mutedIcon != null) {
                 rightDrawable2ContentDescription = getString(R.string.NotificationsMuted);
@@ -946,6 +958,14 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
         }
         titleTextView.setText(value);
         rightDrawableIsScam = false;
+        titleVerifiedByServer = verified && !scam && !fake;
+        if (titleVerifiedByServer && titleTextView.getLeftDrawable() == null) {
+            titleTextView.setLeftDrawable(getRiseGramVerifiedTitleIcon());
+        } else if (!titleVerifiedByServer &&
+                titleTextView.getLeftDrawable() == risegramVerifiedTitleIcon) {
+            // Revocation must remove the left badge without needing app restart.
+            titleTextView.setLeftDrawable(null);
+        }
         if (scam || fake) {
             rightDrawableIsScam = true;
             if (!(titleTextView.getRightDrawable() instanceof ScamDrawable)) {
@@ -965,7 +985,8 @@ public class ChatAvatarContainer extends FrameLayout implements FactorAnimator.T
             titleTextView.setRightDrawable2(verifiedDrawable);
             rightDrawableIsScamOrVerified = true;
             rightDrawable2ContentDescription = getString(R.string.AccDescrVerified);
-        } else if (titleTextView.getRightDrawable() instanceof ScamDrawable) {
+        } else if (rightDrawableIsScamOrVerified) {
+            // Both scam and official verification may have been revoked.
             titleTextView.setRightDrawable2(null);
             rightDrawableIsScamOrVerified = false;
             rightDrawable2ContentDescription = null;
