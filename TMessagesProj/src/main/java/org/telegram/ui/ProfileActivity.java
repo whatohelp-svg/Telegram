@@ -11703,11 +11703,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView.setRightDrawable(null);
                     nameTextViewRightDrawableContentDescription = null;
                 }
-                if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
-                    // The native verifier mark carries the actual issuer (RiseGram or Major).
-                    // Never infer the issuer from a mutable public username.
+                long userIssuerIcon = user.bot_verification_icon;
+                if (userIssuerIcon == 0 && userInfo != null && userInfo.bot_verification != null) {
+                    userIssuerIcon = userInfo.bot_verification.icon;
+                }
+                if (leftIcon == null && currentEncryptedChat == null && userIssuerIcon != 0) {
+                    // The native verifier mark carries the actual issuer.
                     nameTextView.setLeftDrawableOutside(true);
-                    leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
+                    leftIcon = getBotVerificationDrawable(userIssuerIcon, false);
                 } else if (leftIcon == null && currentEncryptedChat == null && user.verified) {
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = ContextCompat.getDrawable(getParentActivity(), R.drawable.risegram_verified).mutate();
@@ -11989,9 +11992,16 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 } else {
                     nameTextView.setRightDrawable(null);
                 }
-                if (chat.bot_verification_icon != 0) {
+                // Some supergroup responses expose the issuer badge only in
+                // ChatFull.bot_verification, not Chat.bot_verification_icon.
+                // Respect the actual mark from either source (Major or RiseGram).
+                long chatIssuerIcon = chat.bot_verification_icon;
+                if (chatIssuerIcon == 0 && chatInfo != null && chatInfo.bot_verification != null) {
+                    chatIssuerIcon = chatInfo.bot_verification.icon;
+                }
+                if (chatIssuerIcon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
-                    nameTextView.setLeftDrawable(getBotVerificationDrawable(chat.bot_verification_icon, false));
+                    nameTextView.setLeftDrawable(getBotVerificationDrawable(chatIssuerIcon, false));
                 } else if (chat.verified) {
                     // Officially verified channels AND supergroups need the RiseGram icon,
                     // even when no separate third-party bot mark was issued.
@@ -14135,15 +14145,25 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 sb.setSpan(new AnimatedEmojiSpan(bot_verification.icon, cell.getTextView().getPaint().getFontMetricsInt()), sb.length() - 1, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                 sb.append(" ");
                                 String verificationDescription = bot_verification.description;
-                                if (chatId != 0 && verificationDescription != null
-                                        && verificationDescription.startsWith("Аккаунт верифицирован")) {
-                                    // Existing group marks were issued using the account default.
-                                    // Correct the noun according to the actual MTProto chat type.
-                                    boolean group = currentChat != null &&
-                                            (!ChatObject.isChannel(currentChat) || currentChat.megagroup);
-                                    verificationDescription =
-                                            (group ? "Группа верифицирована" : "Канал верифицирован")
-                                            + verificationDescription.substring("Аккаунт верифицирован".length());
+                                if (verificationDescription != null) {
+                                    String oldPrefix = verificationDescription.startsWith("Аккаунт верифицирован")
+                                            ? "Аккаунт верифицирован"
+                                            : verificationDescription.startsWith("Группа верифицирована")
+                                            ? "Группа верифицирована"
+                                            : verificationDescription.startsWith("Канал верифицирован")
+                                            ? "Канал верифицирован" : null;
+                                    if (oldPrefix != null) {
+                                        // Use the actual peer type, never a copied issuer default.
+                                        String prefix;
+                                        if (chatId != 0) {
+                                            boolean group = currentChat != null
+                                                    && (!ChatObject.isChannel(currentChat) || currentChat.megagroup);
+                                            prefix = group ? "Группа верифицирована" : "Канал верифицирован";
+                                        } else {
+                                            prefix = "Аккаунт верифицирован";
+                                        }
+                                        verificationDescription = prefix + verificationDescription.substring(oldPrefix.length());
+                                    }
                                 }
                                 SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(
                                         verificationDescription == null ? "" : verificationDescription));
