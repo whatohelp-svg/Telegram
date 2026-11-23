@@ -11803,11 +11803,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 description.setSpan(new DotDividerSpan(), newString2.length() + 1, newString2.length() + 2, 0);
                 photoDescriptionText = description;
             }
-            if (user.verified) {
-                boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
-                profileStatusText = majorAccount
-                        ? "Аккаунт верифицирован организацией Major"
-                        : "Аккаунт верифицирован официальной компанией «RiseGram»";
+            String issuerDescription = userInfo != null && userInfo.bot_verification != null
+                    ? userInfo.bot_verification.description : null;
+            if (issuerDescription != null && issuerDescription.startsWith("Аккаунт верифицирован")) {
+                // The actual verifier issuer is authoritative, not the public username.
+                profileStatusText = issuerDescription;
+            } else if (user.verified) {
+                profileStatusText = "Аккаунт верифицирован официальной компанией «RiseGram»";
             } else {
                 profileStatusText = newString2;
             }
