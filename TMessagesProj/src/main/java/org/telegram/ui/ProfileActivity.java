@@ -11155,6 +11155,12 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
             if (rowCount > 0) {
                 infoSectionRow = rowCount++;
             }
+            // A platform-verified chat without a bot mark still needs a
+            // correctly gendered verification explanation in its profile.
+            if (currentChat != null && currentChat.verified
+                    && (chatInfo == null || chatInfo.bot_verification == null)) {
+                majorVerificationRow = rowCount++;
+            }
 
             if (currentChat != null && currentChat.linked_community_id != 0) {
                 linkedCommunityRow = rowCount++;
@@ -11697,17 +11703,14 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                     nameTextView.setRightDrawable(null);
                     nameTextViewRightDrawableContentDescription = null;
                 }
-                if (leftIcon == null && currentEncryptedChat == null && user.verified) {
-                    nameTextView.setLeftDrawableOutside(true);
-                    boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(user));
-                    Drawable verifiedBadge = ContextCompat.getDrawable(
-                            getParentActivity(),
-                            majorAccount ? R.drawable.major_verified : R.drawable.risegram_verified
-                    ).mutate();
-                    leftIcon = verifiedBadge;
-                } else if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
+                if (leftIcon == null && currentEncryptedChat == null && user.bot_verification_icon != 0) {
+                    // The native verifier mark carries the actual issuer (RiseGram or Major).
+                    // Never infer the issuer from a mutable public username.
                     nameTextView.setLeftDrawableOutside(true);
                     leftIcon = getBotVerificationDrawable(user.bot_verification_icon, false);
+                } else if (leftIcon == null && currentEncryptedChat == null && user.verified) {
+                    nameTextView.setLeftDrawableOutside(true);
+                    leftIcon = ContextCompat.getDrawable(getParentActivity(), R.drawable.risegram_verified).mutate();
                 } else {
                     nameTextView.setLeftDrawableOutside(false);
                 }
@@ -11989,7 +11992,13 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 if (chat.bot_verification_icon != 0) {
                     nameTextView.setLeftDrawableOutside(true);
                     nameTextView.setLeftDrawable(getBotVerificationDrawable(chat.bot_verification_icon, false));
+                } else if (chat.verified) {
+                    // Officially verified channels AND supergroups need the RiseGram icon,
+                    // even when no separate third-party bot mark was issued.
+                    nameTextView.setLeftDrawableOutside(true);
+                    nameTextView.setLeftDrawable(ContextCompat.getDrawable(getParentActivity(), R.drawable.risegram_verified).mutate());
                 } else {
+                    nameTextView.setLeftDrawableOutside(false);
                     nameTextView.setLeftDrawable(null);
                 }
                 profileStatusText = appendCommunityHiddenRow(profileStatusString);
@@ -13790,12 +13799,28 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                         textView.setTextSize(TypedValue.COMPLEX_UNIT_DIP, 13);
                         textView.setTextColor(Theme.getColor(Theme.key_windowBackgroundWhiteGrayText2, resourcesProvider));
                         textView.setGravity(Gravity.CENTER_VERTICAL);
-                        TLRPC.User profileUser = getMessagesController().getUser(userId);
-                        if (profileUser != null && profileUser.verified) {
-                            boolean majorAccount = "major".equalsIgnoreCase(UserObject.getPublicUsername(profileUser));
-                            textView.setText(majorAccount
-                                    ? "Major · Аккаунт верифицирован организацией Major"
-                                    : "Аккаунт верифицирован официальной компанией «RiseGram»");
+                        TLRPC.User profileUser = userId != 0 ? getMessagesController().getUser(userId) : null;
+                        TLRPC.Chat profileChat = chatId != 0 ? getMessagesController().getChat(chatId) : null;
+                        boolean userVerified = profileUser != null && profileUser.verified;
+                        boolean chatVerified = profileChat != null && profileChat.verified;
+                        if (userVerified || chatVerified) {
+                            final String description;
+                            final boolean majorAccount;
+                            if (userVerified) {
+                                String markDescription = userInfo != null && userInfo.bot_verification != null
+                                        ? userInfo.bot_verification.description : "";
+                                majorAccount = markDescription != null && markDescription.contains("Major");
+                                description = majorAccount
+                                        ? "Аккаунт верифицирован организацией «Major»"
+                                        : "Аккаунт верифицирован официальной компанией «RiseGram»";
+                            } else {
+                                majorAccount = false;
+                                boolean group = !ChatObject.isChannel(profileChat) || profileChat.megagroup;
+                                description = group
+                                        ? "Группа верифицирована официальной компанией «RiseGram»"
+                                        : "Канал верифицирован официальной компанией «RiseGram»";
+                            }
+                            textView.setText(description);
                             Drawable verifiedIcon = ContextCompat.getDrawable(
                                     mContext,
                                     majorAccount ? R.drawable.major_badge : R.drawable.risegram_verified
@@ -14109,7 +14134,19 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 sb.append("x");
                                 sb.setSpan(new AnimatedEmojiSpan(bot_verification.icon, cell.getTextView().getPaint().getFontMetricsInt()), sb.length() - 1, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                 sb.append(" ");
-                                SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(bot_verification.description));
+                                String verificationDescription = bot_verification.description;
+                                if (chatId != 0 && verificationDescription != null
+                                        && verificationDescription.startsWith("Аккаунт верифицирован")) {
+                                    // Existing group marks were issued using the account default.
+                                    // Correct the noun according to the actual MTProto chat type.
+                                    boolean group = currentChat != null &&
+                                            (!ChatObject.isChannel(currentChat) || currentChat.megagroup);
+                                    verificationDescription =
+                                            (group ? "Группа верифицирована" : "Канал верифицирован")
+                                            + verificationDescription.substring("Аккаунт верифицирован".length());
+                                }
+                                SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(
+                                        verificationDescription == null ? "" : verificationDescription));
                                 try {
                                     AndroidUtilities.addLinksSafe(description, Linkify.WEB_URLS, false, false);
                                     URLSpan[] spans = description.getSpans(0, description.length(), URLSpan.class);
