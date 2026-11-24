@@ -114,7 +114,7 @@ public class BillingController implements PurchasesUpdatedListener, BillingClien
             return "TON " + (amount / 1_000_000_000.0);
         }
         if ("XTR".equalsIgnoreCase(currency)) {
-            return "XTR " + LocaleController.formatNumber(amount, ',');
+            return "Stars " + LocaleController.formatNumber(amount, ',');
         }
         Currency cur = Currency.getInstance(currency);
         if (cur != null) {
