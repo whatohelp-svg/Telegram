@@ -11803,8 +11803,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                 description.setSpan(new DotDividerSpan(), newString2.length() + 1, newString2.length() + 2, 0);
                 photoDescriptionText = description;
             }
-            String issuerDescription = userInfo != null && userInfo.bot_verification != null
-                    ? userInfo.bot_verification.description : null;
+            String issuerDescription = userInfo != null && userInfo.bot_verification != null && userInfo.bot_verification.description != null
+                    ? userInfo.bot_verification.description.text : null;
             if (issuerDescription != null && issuerDescription.startsWith("Аккаунт верифицирован")) {
                 // The actual verifier issuer is authoritative, not the public username.
                 profileStatusText = issuerDescription;
@@ -13819,8 +13819,8 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                             final String description;
                             final boolean majorAccount;
                             if (userVerified) {
-                                String markDescription = userInfo != null && userInfo.bot_verification != null
-                                        ? userInfo.bot_verification.description : "";
+                                String markDescription = userInfo != null && userInfo.bot_verification != null && userInfo.bot_verification.description != null
+                                        ? userInfo.bot_verification.description.text : "";
                                 majorAccount = markDescription != null && markDescription.contains("Major");
                                 description = majorAccount
                                         ? "Аккаунт верифицирован организацией «Major»"
@@ -14146,7 +14146,7 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                 sb.append("x");
                                 sb.setSpan(new AnimatedEmojiSpan(bot_verification.icon, cell.getTextView().getPaint().getFontMetricsInt()), sb.length() - 1, sb.length(), Spanned.SPAN_EXCLUSIVE_EXCLUSIVE);
                                 sb.append(" ");
-                                String verificationDescription = bot_verification.description;
+                                String verificationDescription = bot_verification.description == null ? null : bot_verification.description.text;
                                 if (verificationDescription != null) {
                                     String oldPrefix = verificationDescription.startsWith("Аккаунт верифицирован")
                                             ? "Аккаунт верифицирован"
@@ -14167,8 +14167,10 @@ public class ProfileActivity extends BaseFragment implements NotificationCenter.
                                         verificationDescription = prefix + verificationDescription.substring(oldPrefix.length());
                                     }
                                 }
-                                SpannableString description = new SpannableString(MessageObject.formatTextWithEntities(
-                                        verificationDescription == null ? "" : verificationDescription));
+                                SpannableString description = new SpannableString(
+                                        bot_verification.description != null && TextUtils.equals(verificationDescription, bot_verification.description.text)
+                                                ? MessageObject.formatTextWithEntities(bot_verification.description)
+                                                : verificationDescription == null ? "" : verificationDescription);
                                 try {
                                     AndroidUtilities.addLinksSafe(description, Linkify.WEB_URLS, false, false);
                                     URLSpan[] spans = description.getSpans(0, description.length(), URLSpan.class);
