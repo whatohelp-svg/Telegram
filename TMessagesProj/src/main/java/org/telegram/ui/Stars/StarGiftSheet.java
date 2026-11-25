@@ -8968,7 +8968,7 @@ public class StarGiftSheet extends BottomSheetWithRecyclerListView implements No
                     final AmountUtils.Amount balance = starsController.balanceAvailable() ?
                             AmountUtils.Amount.of(starsController.getBalance()) : null;
 
-                    if (balance != null && state.amount.asNano() > balance.asNano()) {
+                    if (balance != null && state.amount.compareTo(balance) > 0) {
                         if (selectedCurrency == AmountUtils.Currency.STARS) {
                             new StarsIntroActivity.StarsNeededSheet(context, resourcesProvider, state.amount.asDecimal(), StarsIntroActivity.StarsNeededSheet.TYPE_STAR_GIFT_BUY_RESALE, null, null, 0).show();
                         } else if (selectedCurrency == AmountUtils.Currency.TON){

@@ -4495,6 +4495,6 @@ public class StarsController {
         }
 
         AmountUtils.Amount balance = getInstance(currentAccount, amount.currency).getBalanceAmount();
-        return balance.asNano() >= amount.asNano();
+        return balance.compareTo(amount) >= 0;
     }
 }

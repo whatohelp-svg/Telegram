@@ -178,11 +178,8 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
 
         final AppGlobalConfig config = MessagesController.getInstance(currentAccount).config;
 
-        final AmountUtils.Amount minOfferStars = AmountUtils.Amount.fromDecimal(giftUnique.offer_min_stars, AmountUtils.Currency.STARS);
-        final AmountUtils.Amount maxOfferStars = AmountUtils.Amount.fromDecimal(Math.max(
-            minOfferStars.asDecimal() * 2,
-            config.starsStarGiftResaleAmountMax.get()
-        ), AmountUtils.Currency.STARS);
+        final AmountUtils.Amount minOfferStars = AmountUtils.Amount.fromDecimal(Math.max(giftUnique.offer_min_stars, config.starsStarGiftResaleAmountMin.get()), AmountUtils.Currency.STARS);
+        final AmountUtils.Amount maxOfferStars = AmountUtils.Amount.fromDecimal(config.starsStarGiftResaleAmountMax.get(), AmountUtils.Currency.STARS);
 
         final AmountUtils.Amount minOfferTon = AmountUtils.Amount.fromNano(Math.max(
             minOfferStars.convertTo(AmountUtils.Currency.TON).round(2).asNano(),
@@ -360,7 +357,7 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
             final AmountUtils.Amount balance = starsController.balanceAvailable() ?
                 AmountUtils.Amount.of(starsController.getBalance()) : null;
 
-            if ((balance == null || balance.asNano() < inputAmount.asNano())) {
+            if ((balance == null || balance.compareTo(inputAmount) < 0)) {
                 if (inputAmount.currency == AmountUtils.Currency.STARS) {
                     new StarsIntroActivity.StarsNeededSheet(context, resourcesProvider, inputAmount.asDecimal(), StarsIntroActivity.StarsNeededSheet.TYPE_STAR_GIFT_BUY_RESALE, null, null, dialogId).show();
                 } else if (inputAmount.currency == AmountUtils.Currency.TON){
@@ -447,15 +444,15 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
             inputAmountError |= ERROR_FLAG_INCORRECT_INPUT;
         }
 
-        if (inputAmountLimits.getMax(inputAmount.currency).asNano() < inputAmount.asNano()) {
+        if (inputAmountLimits.getMax(inputAmount.currency).compareTo(inputAmount) < 0) {
             inputAmountError |= ERROR_FLAG_AMOUNT_TOO_BIG;
         }
-        if (!inputAmount.isZero() && inputAmountLimits.getMin(inputAmount.currency).asNano() > inputAmount.asNano()) {
+        if (!inputAmount.isZero() && inputAmountLimits.getMin(inputAmount.currency).compareTo(inputAmount) > 0) {
             inputAmountError |= ERROR_FLAG_AMOUNT_TOO_SMALL;
         }
 
         final boolean currencyChanged = force || oldAmount.currency != inputAmount.currency;
-        final boolean amountChanged = force || oldAmount.asNano() != inputAmount.asNano();
+        final boolean amountChanged = force || !AmountUtils.Amount.equals(oldAmount, inputAmount);
         final boolean amountErrorChanged = force || oldAmountError != inputAmountError;
 
         if (currencyChanged) {
@@ -567,7 +564,7 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
     }
 
     private void checkButtonEnabled(boolean animated) {
-        final boolean newEnabled = inputAmountError == 0 && inputAmount.asNano() > 0;
+        final boolean newEnabled = inputAmountError == 0 && inputAmount.isPositive();
         if (buttonView.isEnabled() != newEnabled) {
             this.buttonView.setEnabled(newEnabled);
             this.buttonView.setClickable(newEnabled);
@@ -709,7 +706,7 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
                 final CharSequence starsFmt = replaceStars(formatString(R.string.GiftOfferPayMultiPart, paywallAmount.asFormatString()));
                 ssb.append(LocaleController.formatSpannable(R.string.GiftOfferPayMulti, tonFmt, starsFmt));
             } else {
-                String fmt = AmountUtils.Amount.fromNano(inputAmount.asNano() + paywallAmount.asNano(), AmountUtils.Currency.STARS).asFormatString();
+                String fmt = inputAmount.plus(paywallAmount).asFormatString();
                 ssb.append(replaceStars(formatString(R.string.GiftOfferPay, fmt)));
             }
         }
@@ -724,9 +721,9 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
                     if (isTon) {
                         needed = AmountUtils.Amount.fromDecimal(paywall, AmountUtils.Currency.STARS);
                     } else {
-                        needed = AmountUtils.Amount.fromNano(inputAmount.asNano() + paywallAmount.asNano(), AmountUtils.Currency.STARS);
+                        needed = inputAmount.plus(paywallAmount);
                     }
-                    if ((balance == null || balance.asNano() < needed.asNano())) {
+                    if ((balance == null || balance.compareTo(needed) < 0)) {
                         new StarsIntroActivity.StarsNeededSheet(getContext(), resourcesProvider, needed.asDecimal(), StarsIntroActivity.StarsNeededSheet.TYPE_STAR_GIFT_BUY_RESALE, null, null, dialogId).show();
                         return;
                     }
@@ -834,7 +831,7 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
             final CharSequence buttonHint;
             final int percent;
             final boolean badBrice;
-            if (value.asNano() >= amountWithFee.asNano()) {
+            if (value.compareTo(amountWithFee) >= 0) {
                 percent = (int) Math.round((1 - amountWithFee.asDouble() / value.asDouble()) * 100);
                 buttonHint = replaceTags(formatString(R.string.GiftOfferAmountLowerHint2, percent + "%", gift.title));
                 badBrice = percent > 10;
@@ -895,6 +892,7 @@ public class GiftOfferSheet extends BottomSheetWithRecyclerListView {
             MessagesController.getInstance(currentAccount).config.starsStarGiftResaleCommissionPermille.get():
             MessagesController.getInstance(currentAccount).config.tonStarGiftResaleCommissionPermille.get();
 
-        return AmountUtils.Amount.fromNano(amount.asNano() * permille / 1000, currency);
+        final AmountUtils.Amount proceeds = amount.applyPerMille(permille);
+        return currency == AmountUtils.Currency.STARS ? proceeds.round(0) : proceeds;
     }
 }

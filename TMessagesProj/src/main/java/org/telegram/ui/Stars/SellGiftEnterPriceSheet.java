@@ -185,7 +185,7 @@ public class SellGiftEnterPriceSheet extends BottomSheet {
         footerLayout.addView(buttonView, LayoutHelper.createLinear(LayoutHelper.MATCH_PARENT, 48, 18, 0, 18, 8));
 
         if (startParams != null) {
-            setAmount(AmountUtils.Amount.fromNano(startParams.asNano(), startParams.currency), !startParams.isZero(), true, false);
+            setAmount(startParams, !startParams.isZero(), true, false);
         } else {
             setAmount(AmountUtils.Amount.fromNano(0, AmountUtils.Currency.STARS), false, true, false);
         }
@@ -241,17 +241,17 @@ public class SellGiftEnterPriceSheet extends BottomSheet {
             inputAmountError |= ERROR_FLAG_INCORRECT_INPUT;
         }
 
-        if (getInputAmountMax().asNano() < inputAmount.asNano()) {
+        if (getInputAmountMax().compareTo(inputAmount) < 0) {
             inputAmountError |= ERROR_FLAG_AMOUNT_TOO_BIG;
         }
-        if (!inputAmount.isZero() && getInputAmountMin().asNano() > inputAmount.asNano()) {
+        if (!inputAmount.isZero() && getInputAmountMin().compareTo(inputAmount) > 0) {
             inputAmountError |= ERROR_FLAG_AMOUNT_TOO_SMALL;
         }
 
 
 
         final boolean currencyChanged = force || oldAmount.currency != inputAmount.currency;
-        final boolean amountChanged = force || oldAmount.asNano() != inputAmount.asNano();
+        final boolean amountChanged = force || !AmountUtils.Amount.equals(oldAmount, inputAmount);
         final boolean amountErrorChanged = force || oldAmountError != inputAmountError;
 
         if (amountErrorChanged) {
@@ -315,7 +315,7 @@ public class SellGiftEnterPriceSheet extends BottomSheet {
     }
 
     private void checkButtonEnabled(boolean animated) {
-        final boolean newEnabled = inputAmountError == 0 && (inputAmount.asNano() > 0);
+        final boolean newEnabled = inputAmountError == 0 && inputAmount.isPositive();
         if (buttonView.isEnabled() != newEnabled) {
             this.buttonView.setEnabled(newEnabled);
             this.buttonView.setClickable(newEnabled);
@@ -346,7 +346,7 @@ public class SellGiftEnterPriceSheet extends BottomSheet {
 
         if (inputAmount.currency == AmountUtils.Currency.STARS) {
             final AmountUtils.Amount amount = inputAmount.applyPerMille(config.starsStarGiftResaleCommissionPermille.get());
-            final CharSequence s = AndroidUtilities.replaceTags(LocaleController.formatPluralString("ResellGiftInfo", (int) amount.asDecimal()));
+            final CharSequence s = AndroidUtilities.replaceTags(amount.asDecimal() <= Integer.MAX_VALUE ? LocaleController.formatPluralString("ResellGiftInfo", (int) amount.asDecimal()) : LocaleController.formatString(R.string.ResellGiftInfo_other, amount.asDecimal()));
             starsCountEditHint.setText(s);
         } else if (inputAmount.currency == AmountUtils.Currency.TON) {
             final AmountUtils.Amount amount = inputAmount.applyPerMille(config.tonStarGiftResaleCommissionPermille.get());

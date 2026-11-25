@@ -35,10 +35,10 @@ public class AppGlobalConfig {
     public final ConfigString starsRatingLearnMoreUrl = ofString("stars_rating_learnmore_url", "https://telegram.org/blog/telegram-stars");
     public final ConfigBoolean needAgeVideoVerification = ofBoolean("need_age_video_verification", false);
 
-    public final ConfigInt starsStarGiftResaleCommissionPermille = ofInt("stars_stargift_resale_commission_permille", 800);
+    public final ConfigInt starsStarGiftResaleCommissionPermille = ofInt("stars_stargift_resale_commission_permille", 900);
     public final ConfigInt tonStarGiftResaleCommissionPermille = ofInt("ton_stargift_resale_commission_permille", 800);
     public final ConfigInt starsStarGiftResaleAmountMin = ofInt("stars_stargift_resale_amount_min", 125);
-    public final ConfigInt starsStarGiftResaleAmountMax = ofInt("stars_stargift_resale_amount_max", 35000);
+    public final ConfigLong starsStarGiftResaleAmountMax = ofLong("stars_stargift_resale_amount_max", 999_000_000_000L);
     public final ConfigLong tonStarGiftResaleAmountMin = ofLong("ton_stargift_resale_amount_min", 10_000_000L);
     public final ConfigLong tonStarGiftResaleAmountMax = ofLong("ton_stargift_resale_amount_max", 10_000_000_000_000L);
 
@@ -242,7 +242,12 @@ public class AppGlobalConfig {
 
             @Override
             public void load(SharedPreferences preferences) {
-                value = preferences.getLong(name, defaultValue);
+                try {
+                    value = preferences.getLong(name, defaultValue);
+                } catch (ClassCastException oldInt) {
+                    Object previous = preferences.getAll().get(name);
+                    value = previous instanceof Number ? ((Number) previous).longValue() : defaultValue;
+                }
             }
         }
     }
