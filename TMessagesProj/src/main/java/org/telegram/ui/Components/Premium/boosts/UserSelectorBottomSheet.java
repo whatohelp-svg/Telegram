@@ -226,6 +226,7 @@ public class UserSelectorBottomSheet extends BottomSheetWithRecyclerListView imp
         cancelSearch();
         final TLRPC.TL_contacts_search req = new TLRPC.TL_contacts_search();
         req.q = query;
+        req.limit = 50;
         runningRequest = ConnectionsManager.getInstance(currentAccount).sendRequest(req, (res, err) -> AndroidUtilities.runOnUIThread(() -> {
             searchResult.clear();
             runningRequest = -1;
