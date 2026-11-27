@@ -1,0 +1,213 @@
+name: RiseGram Desktop for Windows
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/windows-desktop]
+    paths: ['desktop/**', '.github/workflows/desktop.yml']
+permissions:
+  contents: read
+
+jobs:
+
+  windows:
+    name: Windows
+    runs-on: windows-latest
+
+    strategy:
+      matrix:
+        arch: [x64]
+        generator: [""]
+
+    env:
+      UPLOAD_ARTIFACT: "true"
+      ONLY_CACHE: "false"
+      PREPARE_PATH: "Telegram/build/prepare/prepare.py"
+
+    defaults:
+      run:
+        shell: cmd
+
+    steps:
+      - name: Clean up preinstalled software.
+        shell: pwsh
+        run: |
+          $before = (Get-PSDrive C).Free / 1GB
+          Get-Service docker -ErrorAction SilentlyContinue | Stop-Service -ErrorAction SilentlyContinue
+          wsl --shutdown 2> $null
+          Remove-Item "C:\Android\android-sdk", "C:\Program Files\dotnet", "C:\Miniconda", "C:\msys64", "$env:USERPROFILE\.cargo", "$env:USERPROFILE\.rustup", "$env:LOCALAPPDATA\Docker", "C:\ProgramData\DockerDesktop", "C:\Program Files\PostgreSQL", "C:\PostgreSQL", "C:\Program Files\MongoDB", "C:\Program Files\MySQL" -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item "C:\ghcup", "C:\cabal", "C:\Program Files\LLVM", "C:\vcpkg", "C:\tools\kotlinc", "C:\tools\php", "C:\tools\Apache24", "C:\tools\nginx-*", "C:\selenium", "C:\SeleniumWebDrivers", "C:\Program Files\R", "C:\Program Files (x86)\R", "C:\rtools*", "C:\Program Files\Google\Chrome*", "C:\Program Files (x86)\Google\Chrome*", "C:\Program Files\Mozilla Firefox*", "C:\ProgramData\Package Cache" -Recurse -Force -ErrorAction SilentlyContinue
+          # The _Instances registry is how vswhere finds Visual Studio.
+          Get-ChildItem "C:\ProgramData\Microsoft\VisualStudio\Packages" -Exclude _Instances -ErrorAction SilentlyContinue | Remove-Item -Recurse -Force -ErrorAction SilentlyContinue
+          Remove-Item C:\hostedtoolcache\windows\Go*, C:\hostedtoolcache\windows\Ruby*, C:\hostedtoolcache\windows\PyPy*, C:\hostedtoolcache\windows\Java_*, C:\hostedtoolcache\windows\NuGet* -Recurse -Force -ErrorAction SilentlyContinue
+          Write-Host ('{0:N1} GB -> {1:N1} GB free' -f $before, ((Get-PSDrive C).Free / 1GB))
+          exit 0
+
+      - name: Prepare directories.
+        run: |
+          mkdir %userprofile%\TBuild\Libraries
+          mklink /d %GITHUB_WORKSPACE%\TBuild %userprofile%\TBuild
+          echo TBUILD=%GITHUB_WORKSPACE%\TBuild>>%GITHUB_ENV%
+          echo LibrariesPath=%GITHUB_WORKSPACE%\TBuild\Libraries${{ matrix.arch == 'x64' && '\win64' || '' }}>>%GITHUB_ENV%
+
+      - name: Get repository name.
+        shell: bash
+        run: echo "REPO_NAME=${GITHUB_REPOSITORY##*/}" >> $GITHUB_ENV
+
+      - uses: actions/checkout@v4
+        with:
+          path: risegram
+      - name: Clone.
+        uses: actions/checkout@v7
+        with:
+          repository: telegramdesktop/tdesktop
+          ref: c2d0ad92432f6cde7504e8571ac2fcac9bbc42c7
+          submodules: recursive
+          path: ${{ env.TBUILD }}\${{ env.REPO_NAME }}
+
+      - name: Apply RiseGram desktop configuration
+        shell: bash
+        run: git -C "$TBUILD/$REPO_NAME" apply "$GITHUB_WORKSPACE/risegram/desktop/risegram.patch"
+
+      - name: First set up.
+        shell: bash
+        run: |
+          DOCPATH=$TBUILD/$REPO_NAME/docs/building-win.md
+          SDK="$(grep "SDK version" $DOCPATH | sed -r 's/.*\*\*(.*)\*\* SDK version.*/\1/')"
+          echo "SDK=$SDK" >> $GITHUB_ENV
+
+          sed -i '/CMAKE_${lang}_FLAGS_DEBUG_INIT/s/${_Zi}//' "$PROGRAMFILES"/CMake/share/cmake*/Modules/Platform/Windows-MSVC.cmake
+
+          echo "$(sha256sum $TBUILD/$REPO_NAME/$PREPARE_PATH | awk '{ print $1 }')" >> CACHE_KEY.txt
+          echo "$SDK" >> CACHE_KEY.txt
+          echo "CACHE_KEY=$(sha256sum CACHE_KEY.txt | awk '{ print $1 }')" >> $GITHUB_ENV
+
+          echo "Configurate git for cherry-picks."
+          git config --global user.email "you@example.com"
+          git config --global user.name "Sample"
+
+      - name: Install VS 2026 Build Tools.
+        if: matrix.arch == 'arm64'
+        shell: pwsh
+        run: |
+          $exe = Join-Path $env:RUNNER_TEMP 'vs_buildtools.exe'
+          Invoke-WebRequest -Uri https://aka.ms/vs/18/stable/vs_buildtools.exe -OutFile $exe
+          $p = Start-Process -FilePath $exe -Wait -PassThru -ArgumentList `
+            '--quiet','--wait','--norestart','--nocache', `
+            '--add','Microsoft.VisualStudio.Workload.VCTools', `
+            '--add','Microsoft.VisualStudio.Component.VC.Tools.ARM64', `
+            '--add','Microsoft.VisualStudio.Component.VC.ATL.ARM64'
+          Remove-Item $exe -Force -ErrorAction SilentlyContinue
+          if ($p.ExitCode -ne 0 -and $p.ExitCode -ne 3010) { exit $p.ExitCode }
+
+      - uses: Eden-CI/msvc-dev-cmd@master
+        name: Native Tools Command Prompt.
+        with:
+          arch: ${{ matrix.arch }}
+          sdk: ${{ env.SDK }}
+          toolset: ${{ case(matrix.arch == 'arm64', '', '14.44') }}
+
+      - name: NuGet sources.
+        run: |
+          nuget sources Disable -Name "Microsoft Visual Studio Offline Packages"
+          nuget sources Add -Source https://api.nuget.org/v3/index.json & exit 0
+
+      - name: ThirdParty cache.
+        id: cache-third-party
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.TBUILD }}\ThirdParty
+          key: ${{ runner.OS }}-${{ runner.arch }}-third-party-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-${{ runner.arch }}-third-party-
+
+      - name: Libraries cache.
+        id: cache-libs
+        uses: actions/cache@v6
+        with:
+          path: ${{ env.LibrariesPath }}
+          key: ${{ runner.OS }}-${{ matrix.arch }}-release-libs-${{ env.CACHE_KEY }}
+          restore-keys: ${{ runner.OS }}-${{ matrix.arch }}-release-libs-
+
+      - name: Libraries.
+        run: |
+          set SKIP_DUMPSYMS=1
+          set CARGO_INCREMENTAL=0
+          %TBUILD%\%REPO_NAME%\Telegram\build\prepare\win.bat silent
+
+      - name: Read configuration matrix.
+        shell: bash
+        run: |
+          ARTIFACT_NAME="Telegram"
+
+          ARCH=""
+          if [ -n "${{ matrix.arch }}" ]; then
+            case "${{ matrix.arch }}" in
+              x64_x86) ARCH="x86";;
+              arm64) ARCH="arm";;
+              *) ARCH="${{ matrix.arch }}";;
+            esac
+            echo "Architecture from matrix: $ARCH"
+            ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.arch }}"
+          fi
+
+          GENERATOR=""
+          if [ -n "${{ matrix.generator }}" ]; then
+            GENERATOR="-G \"${{ matrix.generator }}\""
+            echo "Generator from matrix: $GENERATOR"
+            ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.generator }}"
+          fi
+          echo "TDESKTOP_BUILD_GENERATOR=$GENERATOR" >> $GITHUB_ENV
+
+          [ -n "$GENERATOR" ] && ARCH=""
+          echo "TDESKTOP_BUILD_ARCH=$ARCH" >> $GITHUB_ENV
+
+          DEFINE=""
+          if [ -n "${{ matrix.defines }}" ]; then
+            DEFINE="-D ${{ matrix.defines }}=ON"
+            echo "Define from matrix: $DEFINE"
+            ARTIFACT_NAME="${ARTIFACT_NAME} ${{ matrix.defines }}"
+          fi
+          echo "TDESKTOP_BUILD_DEFINE=$DEFINE" >> $GITHUB_ENV
+
+          echo "ARTIFACT_NAME=$ARTIFACT_NAME" >> $GITHUB_ENV
+
+      - name: Free up some disk space.
+        shell: bash
+        run: find $LibrariesPath '(' '(' ! '(' -name '*.lib' -o -name '*.a' -o -name '*.exe' -o -name '*.h' -o -name '*.hpp' -o -name '*.inc' -o -name '*.cmake' -o -name '*.pc' -o -path '*/include/*' -o -path '*/objects-*' -o -path '*/cache_keys/*' -o -path '*/patches/*' -o -path '*/nv-codec-headers/*' -o -path '*/src/wallet_engine/*' ')' -type f ')' -o -empty ')' -delete
+
+      - name: Telegram Desktop build.
+        if: env.ONLY_CACHE == 'false'
+        env:
+          APP_ID: ${{ secrets.RISEGRAM_API_ID || secrets.APP_ID }}
+          APP_HASH: ${{ secrets.RISEGRAM_API_HASH || secrets.APP_HASH }}
+        run: |
+          @echo off
+          if not defined APP_ID exit /b 1
+          if not defined APP_HASH exit /b 1
+          cd %TBUILD%\%REPO_NAME%\Telegram
+
+          call configure.bat ^
+          %TDESKTOP_BUILD_GENERATOR% ^
+          %TDESKTOP_BUILD_ARCH% ^
+          -D TDESKTOP_API_ID=%APP_ID% -D TDESKTOP_API_HASH=%APP_HASH% ^
+          -D CMAKE_CONFIGURATION_TYPES=Release ^
+          -D CMAKE_COMPILE_WARNING_AS_ERROR=ON ^
+          -D CMAKE_MSVC_DEBUG_INFORMATION_FORMAT= ^
+          -D DESKTOP_APP_DISABLE_AUTOUPDATE=ON ^
+          -D DESKTOP_APP_DISABLE_CRASH_REPORTS=ON ^
+          %TDESKTOP_BUILD_DEFINE%
+
+          cmake --build ..\out --config Release --target Telegram --parallel
+
+      - name: Move artifact.
+        if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
+        run: |
+          set OUT=%TBUILD%\%REPO_NAME%\out\Release
+          mkdir artifact
+          copy "%OUT%\Telegram.exe" artifact\RiseGram.exe || exit /b 1
+      - uses: actions/upload-artifact@v7
+        name: Upload artifact.
+        if: (env.UPLOAD_ARTIFACT == 'true') || (github.ref == 'refs/heads/nightly')
+        with:
+          name: RiseGram-Desktop-Windows-x64
+          path: artifact\
+          retention-days: 14
