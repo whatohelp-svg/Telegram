@@ -141,8 +141,10 @@ android {
 
     defaultConfig {
         // Keep API credentials in the ignored local.properties file, not in Git.
-        buildConfigField "int", "RISEGRAM_API_ID", (getProps("RISEGRAM_API_ID") ?: "0")
-                buildConfigField "String", "RISEGRAM_API_HASH", "\"\u0024{getProps('RISEGRAM_API_HASH') ?: ''}\""
+        def risegramApiId = System.getenv("RISEGRAM_API_ID") ?: getProps("RISEGRAM_API_ID") ?: "0"
+        def risegramApiHash = System.getenv("RISEGRAM_API_HASH") ?: getProps("RISEGRAM_API_HASH") ?: ""
+        buildConfigField "int", "RISEGRAM_API_ID", risegramApiId
+        buildConfigField "String", "RISEGRAM_API_HASH", groovy.json.JsonOutput.toJson(risegramApiHash)
         minSdkVersion 23
         targetSdkVersion 36
 

@@ -1,0 +1,18 @@
+// Local init script. Only the development launcher supplies the ADB target.
+gradle.projectsEvaluated {
+    def app = gradle.rootProject.project(':TMessagesProj_App')
+    app.tasks.register('runRiseGramEmulator') {
+        dependsOn app.tasks.named('assembleAfatDebug')
+        doLast {
+            def adb = System.getenv('RISEGRAM_DEV_ADB')
+            def serial = System.getenv('RISEGRAM_DEV_SERIAL')
+            if (!adb || !(serial ==~ /emulator-[0-9]+/)) {
+                throw new GradleException('Start the RiseGram development emulator through RiseGram.ps1')
+            }
+            def apk = app.layout.buildDirectory.file('outputs/apk/afat/debug/app.apk').get().asFile
+            app.exec { commandLine adb, '-s', serial, 'install', '-r', apk.absolutePath }
+            def pkg = app.android.defaultConfig.applicationId + app.android.buildTypes.debug.applicationIdSuffix
+            app.exec { commandLine adb, '-s', serial, 'shell', 'am', 'start', '-W', '-n', pkg + '/org.telegram.ui.LaunchActivity' }
+        }
+    }
+}
